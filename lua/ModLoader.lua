@@ -37,8 +37,43 @@ function ModLoader:Init()
 	if(Client) then
 		Event.Hook("Console_enablemod", function(modName) self:EnableMod(modName) end)
 		Event.Hook("Console_disablemod", function(modName) self:DisableMod(modName) end)
+		Event.Hook("Console_enableallmods", function() self:EnableAllMods() end) 
+		Event.Hook("Console_disableallmods", function() self:DisableAllMods() end) 
+		Event.Hook("Console_listmods", function() self:ListMods() end)
 	end
+
+end
+
+function ModLoader:ListMods()
+	for name,_ in pairs(Mods) do
+		if(self.DisabledMods[name]) then
+			print("%s : Disabled", name)
+		else
+			if(ActiveMods[name]) then
+				print("%s : Enabled(Active)", name)
+			else
+				print("%s : Enabled(Inactive)", name)
+			end
+		end
+	end
+end
+
+function ModLoader:EnableAllMods()
 	
+	for name,_ in pairs(Mods) do
+		if(self.DisabledMods[name]) then
+			self:EnableMod(name)
+		end
+	end
+end
+
+function ModLoader:DisableAllMods()
+	
+	for name,_ in pairs(Mods) do
+		if(not self.DisabledMods[name]) then
+			self:DisableMod(name)
+		end
+	end
 end
 
 function ModLoader:EnableMod(modName)
