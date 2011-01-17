@@ -17,6 +17,10 @@ function JoinPaths(path1, path2)
 
 	local firstChar = string.byte(path2) 
 	
+	if(path1 == "") then
+	  return path2
+	end
+	
 	if(firstChar == ForwardSlash or firstChar == BackSlash) then
 		local lastChar = string.byte(path1, #path1)
 		

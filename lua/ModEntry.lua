@@ -33,7 +33,7 @@ local function PrintStackTrace(err)
 	Shared.Message(err..debug.traceback())
 end
 
-function CreateModEntry(Source, dirname, IsArchive)
+function CreateModEntry(Source, dirname, IsArchive, pathInSource)
 	
 	local ModData = {
 		FileSource = Source, 
@@ -48,7 +48,7 @@ function CreateModEntry(Source, dirname, IsArchive)
 	end
 
 	if(IsArchive) then
-		ModData.Path = ""
+		ModData.Path = pathInSource or ""
 	else
 		ModData.Path = "/Mods/"..dirname.."/"
 	end
@@ -59,17 +59,9 @@ end
 function ModEntry:LoadModinfo()
 	
 	self.Valid = false
-	
-	local modinfopath
 
-	if(not self.IsArchive) then
-		modinfopath = string.format("%smodinfo.lua", self.Path)
-	else
-		modinfopath = "/modinfo.lua"
-	end
-	
 	local Source = self.FileSource
-	local success, chunkOrError = pcall(Source.LoadLuaFile, Source, modinfopath)
+	local success, chunkOrError = pcall(Source.LoadLuaFile, Source, self.Path.."modinfo.lua")
 
 	if(not success) then
 		Print("error while trying to read %s's modinfo file:\n%s", self.Name, chunkOrError)
@@ -83,10 +75,11 @@ function ModEntry:LoadModinfo()
 		
 	local fields = {}
 		setfenv(chunkOrError, fields)
-			 
-	success = xpcall(chunkOrError, Print)
-			 
-	if(not success) then	
+
+	local success, msg = pcall(chunkOrError)
+		 
+	if(not success) then
+			Print("error while running %s's modinfo file:\n%s", self.Name, msg)	
 		return false
 	end
 
@@ -119,7 +112,7 @@ end
 function ModEntry:CanLoadInVm(vm)
 	local validVM = self.Modinfo.ValidVM:lower()
 
-	return validVM and validVM == vm or validVM == "both"
+	return validVM == "both" or validVM == vm
 end
 
 function ModEntry:ValidateModinfo() 
@@ -194,7 +187,7 @@ function ModEntry:Load()
 					
 					replacer = (type(replacer) == "string" and replacer) or replacing
 					
-					if(false and self.GameFileSystemPath) then
+					if(self.GameFileSystemPath) then
 						xpcall(LoadTracker.SetFileReplace, Shared.Message, LoadTracker, replacing, JoinPaths(self.GameFileSystemPath, replacing))
 					else
 						xpcall(LoadTracker.SetFileReplace, Shared.Message, LoadTracker, replacing, JoinPaths(self.Path, replacer), self.FileSource)
@@ -218,7 +211,7 @@ function ModEntry:RunLuaFile(path)
 		return Script.Load(JoinPaths(self.GameFileSystemPath,path))
 	end
 
-	return not RunScriptFromSource(self.FileSource, path)
+	return not RunScriptFromSource(self.FileSource, JoinPaths(self.Path, path))
 end
 
 function ModEntry:LoadEntryPointFile()
@@ -227,7 +220,8 @@ function ModEntry:LoadEntryPointFile()
 	local ChunkOrError = self.FileSource:LoadLuaFile(JoinPaths(self.Path,fields.EntryPointFile))
 
 	if(type(ChunkOrError) == "string") then
-		error(string.format("Error while parsing entry point file for %s:%s", self.Name, ChunkOrError))
+		Print("Error while parsing entry point file for %s:%s", self.Name, ChunkOrError)
+	 return false
 	end
 
 	--just run it in the global enviroment
@@ -239,9 +233,10 @@ function ModEntry:LoadEntryPointFile()
 	end
 	
 	local ModTable = _G[fields.ModTableName]
-	
+
 	if(not ModTable) then
-		error(self.Name.." modtable could not be found after loading")
+		Print(self.Name.." modtable could not be found after loading")
+	 return false
 	end
 	
 	if(self.GameFileSystemPath) then
@@ -255,12 +250,12 @@ function ModEntry:LoadEntryPointFile()
 	ModTable.LoadScript = function(selfArg, path) 
 		self:RunLuaFile(path)
 	end
-	
-	ModTable.LoadLuaDllModule = function(selfArg, path) 
-		return NS2_IO.LoadLuaDllModule(self.FileSource, JoinPaths(self.Path, path))
+
+  if(not self.IsArchive) then	
+	  ModTable.LoadLuaDllModule = function(selfArg, path) 
+	  	return NS2_IO.LoadLuaDllModule(self.FileSource, JoinPaths(self.Path, path))
+	  end
 	end
-	
-	
 	
 	--should add a way to have saved vars for client VM only or Server Vm only
 	--so both vms aren't writing to the same file when were running in a listen server
@@ -332,6 +327,11 @@ function ModEntry:Enable()
 end
 
 function ModEntry:Disable()
+  
+  if(not self:CanDisable()) then
+    error(self.Name.." cannot be runtime disabled")
+  end
+  
 	if(self.ModTable.Disable) then
 		self.ModTable:Disable()
 	end

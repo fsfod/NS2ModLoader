@@ -44,6 +44,17 @@ function ModLoader:Init()
 
 end
 
+function ModLoader:GetListOfActiveMods()
+  
+  local list = {}
+
+  for name,_ in pairs(ActiveMods) do
+    list[#list+1] = name
+  end
+
+  return list
+end
+
 function ModLoader:ListMods()
 	for name,_ in pairs(Mods) do
 		if(self.DisabledMods[name]) then
@@ -80,14 +91,14 @@ function ModLoader:EnableMod(modName)
 	
 	if(not modName) then
 		print("EnableMod: Need to specify the name of a mod to enable")
-	 return
+	 return false
 	end
 	
 	local name = modName:lower()
 	
 	if(not Mods[name]) then
 		print("EnableMod: No mod named "..modName.." installed")
-	 return
+	 return false
 	end
 
 	self.DisabledMods[name] = false
@@ -95,20 +106,22 @@ function ModLoader:EnableMod(modName)
 	self.SV:Save()
 	
 	print("Mod %s set to enabled a restart is require for this mod tobe loaded", modName)
+	
+	return true
 end
 
 function ModLoader:DisableMod(modName)
 	
 	if(not modName) then
 		print("DisableMod: Need to specify the name of a mod to disable")
-	 return
+	 return false
 	end
 	
 	local name = modName:lower()
 	
 	if(not Mods[name]) then
 		print("DisableMod: No mod named "..modName.." installed")
-	 return
+	 return false
 	end
 	
 	self.DisabledMods[name] = true
@@ -116,10 +129,18 @@ function ModLoader:DisableMod(modName)
 	self.SV:Save()
 	
 	if(ActiveMods[name]) then
-		print("DisableMod: Mod %s set to disabled this mod will still be loaded for this session", modName)
+	  
+	  if(ActiveMods[name]:CanDisable()) then
+	    ActiveMods[name]:Disable()
+	    print("DisableMod: Mod %s has been set to disabled and has activly disabled its self", modName)
+	  else
+	    print("DisableMod: Mod %s set to disabled this mod will still be loaded for this session", modName)
+	  end
 	else
 		print("DisableMod: Mod %s set to disabled", modName)
 	end
+	
+	return true
 end
 
 function ModLoader:ScannForMods()
@@ -152,7 +173,14 @@ function ModLoader:ScannForMods()
 					
 					Mods[modname:lower()] = CreateModEntry(archiveOrError, modname, true)
 				else
-					print("Skiping mod archive \"%s\" that has no modinfo.lua in it", fileName)
+				  local dirlist = archiveOrError:FindDirectorys("", "")
+				  local modname = dirlist[1]
+				  --if theres no modinfo.lua in the root of the archive see if the archive contains a single directory that has a modinfo.lua in it
+				  if(#dirlist == 1 and archiveOrError:FileExists(modname.."/modinfo.lua")) then
+				    Mods[modname:lower()] = CreateModEntry(archiveOrError, modname, true, modname.."/")
+				  else
+				    print("Skiping mod archive \"%s\" that has no modinfo.lua in it", fileName)
+				  end
 				end
 			else
 				print("error while opening mod archive %s :\n%s", fileName, archiveOrError)

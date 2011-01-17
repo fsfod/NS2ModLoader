@@ -1,6 +1,6 @@
 <game>
 	<name>ns2</name>
-	<description>Natural Selection 2</description>
+	<description>Natural Selection 2 with ModLoader</description>
 	<client>lua/ModLoader_Client.lua</client>
 	<server>lua/ModLoader_Server.lua</server>
 </game>
