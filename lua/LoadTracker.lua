@@ -41,6 +41,11 @@ function LoadTracker:ScriptLoadStart(normalizedsPath)
 			 return false
 			end
 		end
+	else
+		--block a double load of an override
+		if(self.OverridedFiles[normalizedsPath]) then
+			return false
+		end
 	end
 	
 	return normalizedsPath
