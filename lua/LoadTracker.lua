@@ -4,7 +4,7 @@ LoadTracker = {
 	LoadedScripts = {},
 	
 	LoadedFileHooks = {},
-	ReplacedFiles = {},
+	OverridedFiles = {},
 }
 
 
@@ -31,13 +31,13 @@ function LoadTracker:ScriptLoadStart(normalizedsPath)
 	if(not self.LoadedScripts[normalizedsPath]) then
 		self.LoadedScripts[normalizedsPath] = #self.LoadStack
 		
-		local Replacer = self.ReplacedFiles[normalizedsPath]
+		local FileOverride = self.OverridedFiles[normalizedsPath]
 		
-		if(Replacer) then
-			if(type(Replacer) ~= "table") then
-			 return self.ReplacedFiles[normalizedsPath]
+		if(FileOverride) then
+			if(type(FileOverride) ~= "table") then
+			 return FileOverride
 			else
-				RunScriptFromSource(Replacer[1], Replacer[2])
+				RunScriptFromSource(FileOverride[1], FileOverride[2])
 			 return false
 			end
 		end
@@ -61,25 +61,25 @@ function LoadTracker:HookFileLoadFinished(scriptPath, selfTable, funcName)
 	end
 end
 
-function LoadTracker:SetFileReplace(tobeReplaced, replacingFile, replacingSource)
+function LoadTracker:SetFileOverride(tobeReplaced, overrider, overriderSource)
 	
 	local tobeNorm = NormalizePath(tobeReplaced)
 	
 	if(self.LoadedScripts[tobeNorm]) then
-		error("cannot set file replace for "..tobeReplaced.." because the file is already loaded")
+		error("cannot set file override for "..tobeReplaced.." because the file is already loaded")
 	end
 	
-	if(self.ReplacedFiles[tobeNorm]) then
-		error(string.format("Cannot replace %s because its already been replaced by %s", tobeReplaced, self.ReplacedFiles[tobeReplaced]))
+	if(self.OverridedFiles[tobeNorm]) then
+		error(string.format("Cannot override %s because its already been overriden by %s", tobeReplaced, self.OverridedFiles[tobeReplaced]))
 	end
 	
-	local entry = replacingFile
+	local entry = overrider
 	
-	if(replacingSource) then
-		entry = {replacingSource, replacingFile}
+	if(overriderSource) then
+		entry = {overriderSource, overrider}
 	end
 	
-	self.ReplacedFiles[tobeNorm] = entry
+	self.OverridedFiles[tobeNorm] = entry
 end
 
 function LoadTracker:ScriptLoadFinished(normalizedsPath)

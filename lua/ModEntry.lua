@@ -98,7 +98,7 @@ local RequiredFieldList ={
 local OptionalFieldList = {
 	SavedVaribles = "table",
 	ExtraFiles = "table",
-	ReplaceFiles = "table",
+	OverrideFiles = "table",
 	ModTableName = "string",
 }
 
@@ -181,19 +181,19 @@ function ModEntry:Load()
 				end
 			end
 				    
-		if(fields.ReplaceFiles) then
-			for replacing,replacer in pairs(fields.ReplaceFiles) do
+		if(fields.OverrideFiles) then
+			for replacing,replacer in pairs(fields.OverrideFiles) do
 				if(type(replacing) == "string") then
 					
 					replacer = (type(replacer) == "string" and replacer) or replacing
 					
 					if(self.GameFileSystemPath) then
-						xpcall(LoadTracker.SetFileReplace, Shared.Message, LoadTracker, replacing, JoinPaths(self.GameFileSystemPath, replacing))
+						xpcall(LoadTracker.SetFileOverride, Shared.Message, LoadTracker, replacing, JoinPaths(self.GameFileSystemPath, replacing))
 					else
-						xpcall(LoadTracker.SetFileReplace, Shared.Message, LoadTracker, replacing, JoinPaths(self.Path, replacer), self.FileSource)
+						xpcall(LoadTracker.SetFileOverride, Shared.Message, LoadTracker, replacing, JoinPaths(self.Path, replacer), self.FileSource)
 					end
 				else
-					Print("Skipping entry that is a not a string in ReplaceFiles table of %s modinfo", self.Name)
+					Print("Skipping entry that is a not a string in OverrideFiles table of %s modinfo", self.Name)
 				end
 			end
 		end
