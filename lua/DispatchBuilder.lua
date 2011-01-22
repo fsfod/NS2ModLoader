@@ -1,66 +1,86 @@
 DispatchBuilder = {}
  
 --maybe we could create all these dispatchers as closeure
-function DispatchBuilder.SingleNormal(hookData, ...)
-	hookData[1](...)
+function DispatchBuilder:CreateNormal(hookData)
 
-	local retvalue = hookData.Orignal(...)
+  local hook = hookData[1]
 
-		if(hookData.ReturnValue) then
-			retvalue = hookData.ReturnValue
-			hookData.ReturnValue = nil
+	return function(...)
+	  hook(...)
 
-			if(retvalue == FakeNil) then
-				retvalue = nil
-			end
+	  local retvalue = hookData.Orignal(...)
+
+	  	if(hookData.ReturnValue) then
+	  		retvalue = hookData.ReturnValue
+	  		hookData.ReturnValue = nil
+    
+	  		if(retvalue == FakeNil) then
+	  			retvalue = nil
+	  		end
+	  	end
+    
+	  return retvalue
+	end
+end
+
+function DispatchBuilder:CreateSingleClassRaw(hookData)
+
+  local hook = hookData.Raw[1]
+
+  return function(self, ...)
+	  local retvalue = hookData.Orignal(self, hook(self, ...))
+
+	  	if(hookData.ReturnValue) then
+	  		retvalue = hookData.ReturnValue
+	  		hookData.ReturnValue = nil
+	  		
+	  		if(retvalue == FakeNil) then
+	  			retvalue = nil
+	  		end
+	  	end
+
+	  return retvalue
+  end
+end
+
+function DispatchBuilder:CreateSingleRaw(hookData)
+  
+  local hook = hookData.Raw[1]
+  
+  return function(...)
+	  local retvalue = hookData.Orignal(hook(...))
+    
+	  	if(hookData.ReturnValue) then
+	  		retvalue = hookData.ReturnValue
+	  		hookData.ReturnValue = nil
+	  		
+	  		if(retvalue == FakeNil) then
+	  			retvalue = nil
+	  		end
+	  	end
+    
+	  return retvalue
+	end
+end
+
+function DispatchBuilder:CreateSinglePost(hookData)
+
+  local hook = hookData.Post[1]
+  
+  return function(...)
+	  --Store the return value in our hookinfo so the post hook can read it if it wants
+	  hookData.ReturnValue = hookData.Orignal(...)
+	  hook(...)
+    
+	  local retvalue = hookData.ReturnValue
+	  hookData.ReturnValue = nil
+    
+    if(retvalue == FakeNil) then
+			retvalue = nil
 		end
-
-	return retvalue
-end
-
-function DispatchBuilder.SingleClassRaw(hookData, self, ...)
-	local retvalue = hookData.Orignal(self, hookData.Raw[1](self, ...))
-
-		if(hookData.ReturnValue) then
-			retvalue = hookData.ReturnValue
-			hookData.ReturnValue = nil
-			
-			if(retvalue == FakeNil) then
-				retvalue = nil
-			end
-		end
-
-	return retvalue
-end
-
-function DispatchBuilder.SingleRaw(hookData, self, ...)
-	local retvalue = hookData.Orignal(hookData.Raw[1](...))
-
-		if(hookData.ReturnValue) then
-			retvalue = hookData.ReturnValue
-			hookData.ReturnValue = nil
-			
-			if(retvalue == FakeNil) then
-				retvalue = nil
-			end
-		end
-
-	return retvalue
-end
-
-function DispatchBuilder.SinglePost(hookData, ...)
-	--Store the return value in our hookinfo so the post hook can read it if it wants
-	hookData.ReturnValue = hookData.Orignal(...)
-	hookData.Post[1](...)
-
-	local retvalue = hookData.ReturnValue
-	hookData.ReturnValue = nil
-
-	return retvalue
-end
-
-function DispatchBuilder.Empty(hookData, ...)
-	return hookData.Orignal(...)
+    
+	  return retvalue
+	end
 end
 
 function DispatchBuilder:UpdateDispatcher(hookData)
@@ -70,25 +90,33 @@ end
 function DispatchBuilder:CreateDispatcher(hookData, isClassFunction)
 
 	if(#hookData == 1 and not hookData.Raw and not hookData.Post) then
-		return self.SingleNormal
+		return self:CreateNormal(hookData)
 	end
 
 	if(#hookData == 0) then
 		if(hookData.Raw and #hookData.Raw == 1 and not hookData.Post) then
-			if(isClassFunction) then
-				return self.SingleClassRaw
+			if(hookData.Class) then
+				return self:CreateSingleClassRaw(hookData)
+			else
+			  return self:CreateSingleRaw(hookData)
 			end
 		elseif(hookData.Post and #hookData.Post == 1 and not hookData.Raw) then
-			return self.SinglePost
+			return self:CreateSinglePost(hookData)
 		else
-			return self.Empty
+		  
+		  if(hookData.ReplacedOrignal) then
+		    local hook = hookData.ReplacedOrignal
+			 return function(...) return hook(...) end
+			else
+			  return nil
+			end
 		end
 	end
 
-	if(IsClassFunction) then
-		return DispatchBuilder.MultiHookClassDispatcher
+	if(hookData.Class) then
+		return self:CreateMultiHookClassDispatcher(hookData)
 	else
-		return DispatchBuilder.MultiHookDispatcher
+		return self:CreateMultiHookDispatcher(hookData)
 	end
 end
 
@@ -132,66 +160,70 @@ local function RawArgsToNormalHooks(hookData, ...)
 end
 
 --TODO add exception handling 
-function DispatchBuilder.MultiHookClassDispatcher(hookData, ...)
+function DispatchBuilder:CreateMultiHookClassDispatcher(hookData)
 
-	local retvalue
+  return function(...)
+	  local retvalue
+    
+	  if(hookData.Raw) then
+	  	retvalue = hookData.Orignal(RawArgsToNormalHooks(hookData, select(1, ...), RawClassDispatcherI[#hookData.Raw](...)))
+	  else
+	  	RawArgsToNormalHooks(hookData,...)
+	  	retvalue = hookData.Orignal(...)
+	  end
+    
+	  if(hookData.Post) then
+	   hookData.ReturnValue = hookData.ReturnValue or retvalue 
+    
+	  	for _,hook in ipairs(hookData.Post) do
+	  		hook(...)
+	  	end
+	  end
 
-	if(hookData.Raw) then
-		retvalue = hookData.Orignal(RawArgsToNormalHooks(hookData, select(1, ...), RawClassDispatcherI[#hookData.Raw](...)))
-	else
-		RawArgsToNormalHooks(hookData,...)
-		retvalue = hookData.Orignal(...)
-	end
+	  if(hookData.ReturnValue) then
+	  	retvalue = hookData.ReturnValue
+	  	hookData.ReturnValue = nil
+	  		
+	  	if(retvalue == FakeNil) then
+	  		retvalue = nil
+	  	end
+	  end
 
-	if(hookData.Post) then
-	 hookData.ReturnValue = hookData.ReturnValue or retvalue 
-
-		for _,hook in ipairs(hookData.Post) do
-			hook(...)
-		end
-	end
-
-	if(hookData.ReturnValue) then
-		retvalue = hookData.ReturnValue
-		hookData.ReturnValue = nil
-			
-		if(retvalue == FakeNil) then
-			retvalue = nil
-		end
-	end
-	
- return retvalue
+   return retvalue
+  end
 end
 
-function DispatchBuilder.MultiHookDispatcher(hookData, ...)
+function DispatchBuilder:CreateMultiHookDispatcher(hookData)
 
-	local retvalue
-
-	if(hookData.Raw) then
-		retvalue = hookData.Orignal(RawArgsToNormalHooks(hookData, RawDispatcherI[#hookData.Raw](...)))
-	else
-		RawArgsToNormalHooks(hookData, ...)
-		retvalue = hookData.Orignal(...)
-	end
-
-	if(hookData.Post) then
-		hookData.ReturnValue = hookData.ReturnValue or retvalue 
-
-		for _,hook in ipairs(hookData.Post) do
-			hook(...)
-		end
-	end
-
-	if(hookData.ReturnValue) then
-		retvalue = hookData.ReturnValue
-		hookData.ReturnValue = nil
-			
-		if(retvalue == FakeNil) then
-			retvalue = nil
-		end
-	end
-	
- return retvalue
+  return function(...)
+	  local retvalue
+    
+	  if(hookData.Raw) then
+	  	retvalue = hookData.Orignal(RawArgsToNormalHooks(hookData, RawDispatcherI[#hookData.Raw](...)))
+	  else
+	  	RawArgsToNormalHooks(hookData, ...)
+	  	retvalue = hookData.Orignal(...)
+	  end
+    
+	  if(hookData.Post) then
+	  	hookData.ReturnValue = hookData.ReturnValue or retvalue 
+    
+	  	for _,hook in ipairs(hookData.Post) do
+	  		hook(...)
+	  	end
+	  end
+    
+	  if(hookData.ReturnValue) then
+	  	retvalue = hookData.ReturnValue
+	  	hookData.ReturnValue = nil
+	  		
+	  	if(retvalue == FakeNil) then
+	  		retvalue = nil
+	  	end
+	  end
+	  
+   return retvalue
+  end
 end
 
 function DispatchBuilder.ErrorHandler(err)

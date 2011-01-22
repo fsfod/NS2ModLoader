@@ -12,8 +12,8 @@ Standard Pre:
 Raw Hooks:
 	Are processed first before Standard hooks
 	Can Modify paramaters sent to the orignal function
-	Must return the new parameters or the orignals if it did not change any e.g. "function hook(objself, a1, a2 ,a3) return a1, a2 ,a3 end" 
-		the objself paramter doesn't have tobe returned
+	Must return the new parameters or the orignals if it did not change any e.g. function hook(objself, a1, a2 ,a3) return a1, a2 ,a3 end 
+		the objself paramter doesnt have tobe returned
 	
 Post Hooks:
 	called after Standard hooks and after the orignal function is called
@@ -256,19 +256,14 @@ function ClassHooker:RuntimeHookClass(class, funcname, hookData)
 	end
 	
 	hookData.Class = class
+	hookData.Name = funcname
 	
 	--we have this so we have a second copy for when a hook disable calling the orignal by replacing Orignal with a dummy function through BlockCallOrignal
 	hookData.RealOrignal = OrignalFunction
 
 	hookData.Dispatcher	= DispatchBuilder:CreateDispatcher(hookData, true)
-
-	local HookFunc = function(...)
-		return hookData:Dispatcher(...)
-	end
 	
-	self:PropergateHookToSubClass(class, funcname, HookFunc, OrignalFunction)
-
-	hookData.HookFunction = HookFunc
+	self:PropergateHookToSubClass(class, funcname, hookData.Dispatcher, OrignalFunction)
 end
 
 function ClassHooker:CreateAndSetHook(hookData, funcname)
@@ -279,23 +274,19 @@ function ClassHooker:CreateAndSetHook(hookData, funcname)
 	if(not OrignalFunction) then
 		error(string.format("ClassHooker:CreateAndSetHook function \"%s\" does not exist%s", funcname, (hookData.Library and "in Library ") or ""))
 	end
-	
+
 	--don't write to Orignal if a hook has called BlockOrignalCall already which changes Orignal to an empty funtion
 	if(not hookData.Orignal) then
 		hookData.Orignal = OrignalFunction 
 	end
-	
+
 	--we have this so we have a second copy for when a hook disable calling the orignal by replacing Orignal with a dummy function through BlockCallOrignal
 	hookData.RealOrignal = Orignal
 
 	hookData.Dispatcher	= DispatchBuilder:CreateDispatcher(hookData)
-
-	local HookFunc = function(...)
-		return hookData:Dispatcher(...)
-	end
+  hookData.Name = funcname
 	
-	Container[funcname] = HookFunc
-	hookData.HookFunction = HookFunc
+	Container[funcname] = hookData.Dispatcher
 end
 
 function ClassHooker:CreateAndSetClassHook(hookData, class, funcname)
@@ -303,7 +294,7 @@ function ClassHooker:CreateAndSetClassHook(hookData, class, funcname)
 	local OrignalFunction = _G[class][funcname]
 	
 	if(not OrignalFunction) then
-		error(string.format("ClassHooker:CreateAndSetHook function \"%s\" in class %s does not exist", funcname, class))
+		error(string.format("ClassHooker:CreateAndSetClassHook function \"%s\" in class %s does not exist", funcname, class))
 	end
 	
 	--don't write to Orignal if a hook has called BlockOrignalCall already which changes Orignal to an empty funtion
@@ -312,18 +303,13 @@ function ClassHooker:CreateAndSetClassHook(hookData, class, funcname)
 	end
 	
 	hookData.Class = class
-	
+	hookData.Name = funcname
 	--we have this so we have a second copy for when a hook disable calling the orignal by replacing Orignal with a dummy function through BlockCallOrignal
 	hookData.RealOrignal = OrignalFunction
 
-	hookData.Dispatcher	= DispatchBuilder:CreateDispatcher(hookData, true)
+  hookData.Dispatcher = DispatchBuilder:CreateDispatcher(hookData, true)
 
-	local HookFunc = function(...)
-		return hookData:Dispatcher(...)
-	end
-	
-	_G[class][funcname] = HookFunc
-	hookData.HookFunction = HookFunc
+	_G[class][funcname] = hookData.Dispatcher
 end
 
 local function CheckCreateHookTable(hookTable, functionName, hookType)
@@ -439,7 +425,7 @@ function ClassHooker:HookFunctionType(hookType, functionName, FuncOrSelf, callba
 	
 	if(self.MainLuaLoadingFinished) then
 		if(self.FunctionHooks[functionName]) then
-			DispatchBuilder:UpdateDispatcher(HookData)
+			self:UpdateDispatcher(HookData)
 		else
 			self:CreateAndSetHook(HookData, functionName)
 		end
@@ -452,14 +438,10 @@ function ClassHooker:IsClassHookSet(classname, functionName)
 	
 	local hook = self.ClassFunctionHooks[classname] and self.ClassFunctionHooks[classname][functionName]
 
-	return (hook and hook.HookFunction ~= nil) or false
+	return (hook and hook.Dispatcher ~= nil) or false
 end
 
 function ClassHooker:HookClassFunctionType(hookType, classname, functioName, FuncOrSelf, callbackFuncName)
-
-	if(not self.MainLuaLoadingFinished and self:IsUnsafeToModify(classname)) then
-		error(string.format("ClassHooker:HookClassFunction '%s' cannot be hooked after another class has inherited it", classname))
-	end
 
 	local HookData = self:CheckCreateClassHookTable(classname, functioName, hookType)
 
@@ -467,10 +449,8 @@ function ClassHooker:HookClassFunctionType(hookType, classname, functioName, Fun
 	
 	if(self.MainLuaLoadingFinished) then
 		if self:IsClassHookSet(classname, functioName) then
-			DispatchBuilder:UpdateDispatcher(HookData)
+			self:UpdateDispatcher(HookData)
 		else
-			--will use runtime hooking once i know its reliable here
-			//error("cannot runtime hook a function yet")
 			self:RuntimeHookClass(classname, functioName, HookData)
 		end
 	end
@@ -495,7 +475,9 @@ local function CheckRemoveHook(t, hook)
 end
 
 --not the fastest but hook removal will not happen often
-local function Handle_RemoveHook(hookData, hook)
+function ClassHooker:RemoveHook(hook)
+
+  local hookData = hook[3]
 
 	if(not CheckRemoveHook(hookData, hook)) then
 		if(CheckRemoveHook(hookData.Post, hook)) then
@@ -517,13 +499,47 @@ local function Handle_RemoveHook(hookData, hook)
 		end
 	end
 
-	DispatchBuilder:UpdateDispatcher(hookData)
+  self:UpdateDispatcher(hookData)
 
 	return true
 end
 
-function ClassHooker:RemoveHook(hook)
-	return Handle_RemoveHook(hook[3], hook)
+function ClassHooker:UpdateDispatcher(hookData)
+   
+  local newDispatcher = DispatchBuilder:CreateDispatcher(hookData) or hookData.RealOrignal
+
+  local FunctionName = hookData.Name 
+
+  if(hookData.Class) then
+    local tables = self:GetLuabindTables(hookData.Class)
+    local static, instance = tables[1][FunctionName], tables[2][FunctionName]
+  
+    if(not (instance == hookData.RealOrignal and static == hookData.RealOrignal)) then
+      if(static ~= hookData.Dispatcher) then
+       error(string.format("ClassHooker:UpdateDispatcher current hook dispatcher for class %s was not the expected value(static table)", hookData.Class))
+      end
+    
+      if(instance ~= hookData.Dispatcher) then
+        error(string.format("ClassHooker:UpdateDispatcher current hook dispatcher for class %s was not the expected value(instance table)", hookData.Class))
+      end
+    end
+
+    self:PropergateHookToSubClass(hookData.Class, FunctionName, newDispatcher, hookData.Dispatcher)
+  else
+    local containerTable = hookData.Library or _G
+
+    if(containerTable[hookData.Name] ~= hookData.Dispatcher) then
+      if(hookData.Library) then
+        error(string.format("ClassHooker:UpdateDispatcher current hook dispatcher for library function %s was not the expected value", FunctionName))
+      else
+        error(string.format("ClassHooker:UpdateDispatcher current hook dispatcher for function %s was not the expected value", FunctionName))
+      end
+    end
+
+    containerTable[hookData.Name] = newDispatcher
+  end
+  
+  hookData.Dispatcher = newDispatcher
 end
 
 function ClassHooker:ClassDeclaredCallback(classname, FuncOrSelf, callbackFuncName)
