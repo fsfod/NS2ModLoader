@@ -38,6 +38,7 @@ function CreateModEntry(Source, dirname, IsArchive, pathInSource)
 	local ModData = {
 		FileSource = Source, 
 		Name = dirname,
+		InternalName = dirname:lower(),
 		IsArchive = IsArchive,
 	}
 
@@ -56,6 +57,16 @@ function CreateModEntry(Source, dirname, IsArchive, pathInSource)
 	return setmetatable(ModData, EntryMetaTable)
 end
 
+local ChangeCaseMT = {
+  __newindex = function(tbl, key, value) 
+    rawset(tbl, key:lower(), value) 
+  end,
+  
+  __index = function(tbl, key) 
+    return rawget(tbl, key:lower()) 
+  end,
+}
+
 function ModEntry:LoadModinfo()
 	
 	self.Valid = false
@@ -73,7 +84,7 @@ function ModEntry:LoadModinfo()
 	 return false
 	end
 		
-	local fields = {}
+	local fields = setmetatable({}, ChangeCaseMT)
 		setfenv(chunkOrError, fields)
 
 	local success, msg = pcall(chunkOrError)
@@ -84,10 +95,40 @@ function ModEntry:LoadModinfo()
 	end
 
 	self.Modinfo = fields
-
+	
 	self.Valid = true
 	
+	if(fields.Dependencys) then
+    local deps = {}
+
+    for _,name in ipairs(fields.Dependencys) do
+      if(type(name) == "string" and name ~= "") then
+        deps[name:lower()] = true
+      end
+    end
+
+    if(next(deps)) then
+      self.Dependencys = deps
+    end
+  end
+	
 	return self:ValidateModinfo()
+end
+
+local StackTrace
+
+local function SetStackTrace(err) 
+	StackTrace = err..debug.traceback()
+end
+
+function ModEntry:CanLoad(vm)
+  return (self.Valid and self.Modinfo.CanLateLoad)
+end
+
+function ModEntry:CanLoadInVm(vm)
+	local validVM = self.Modinfo.ValidVM:lower()
+
+	return validVM == "both" or validVM == vm
 end
 
 local RequiredFieldList ={
@@ -100,20 +141,8 @@ local OptionalFieldList = {
 	ExtraFiles = "table",
 	OverrideFiles = "table",
 	ModTableName = "string",
+	CanLateLoad = "boolean"
 }
-
-
-local StackTrace
-
-local function SetStackTrace(err) 
-	StackTrace = err..debug.traceback()
-end
-
-function ModEntry:CanLoadInVm(vm)
-	local validVM = self.Modinfo.ValidVM:lower()
-
-	return validVM == "both" or validVM == vm
-end
 
 function ModEntry:ValidateModinfo() 
 	
@@ -163,6 +192,8 @@ function ModEntry:ValidateModinfo()
 		valid = false
 	end
 
+  self.Valid = valid
+
 	return valid
 end
 
@@ -180,7 +211,7 @@ function ModEntry:Load()
 					end
 				end
 			end
-				    
+
 		if(fields.OverrideFiles) then
 			for replacing,replacer in pairs(fields.OverrideFiles) do
 				if(type(replacing) == "string") then
@@ -310,8 +341,6 @@ function ModEntry:OnServerLuaFinished()
 		xpcall(ModTable.OnSharedLuaFinished, PrintStackTrace, ModTable)
 	end
 end
-
-
 
 function ModEntry:CanDisable()
 	

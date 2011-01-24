@@ -208,14 +208,141 @@ local VMName = (Server and "server") or "client"
 
 function ModLoader:LoadMods()
 
-	for modname,entry in pairs(Mods) do
-		if(entry:LoadModinfo() and not self.DisabledMods[modname] and entry:CanLoadInVm(VMName)) then
-			print("Loading mod: "..entry.Name)
+  local LoadableMods = {}
+  --a hashtable The key is the name of mod. the value a keyvalue list of mods that depend on the mod
+  local Dependents = {}
 
-			if(entry:Load()) then
-				ActiveMods[modname] = entry
-			end
+  for modname,entry in pairs(Mods) do
+		if entry:LoadModinfo() and not self.DisabledMods[modname] and entry:CanLoadInVm(VMName) then
+		  LoadableMods[modname] = entry
+
+		  if(entry.Dependencys) then
+		    for name,_ in pairs(entry.Dependencys) do
+		      if(not Dependents[name]) then
+		        Dependents[name] = {}
+		      end
+		      
+		      Dependents[name][modname] = entry
+        end
+		  end
 		end
 	end
 
+  if(next(Dependents)) then
+    self:HandleModsDependencys(LoadableMods, Dependents)
+  else
+    for modname,entry in pairs(LoadableMods) do
+      print("Loading mod: "..entry.Name)
+
+		  if(entry:Load()) then
+		    ActiveMods[modname] = entry
+		  end
+    end
+  end
+
 end
+
+function ModLoader:HandleModsDependencys(LoadableMods, Dependents)
+  
+  local MissingDependencys = {}
+  local RootList = {}
+
+  for modname,list in pairs(Dependents) do
+    local RequiredMod = LoadableMods[modname]
+    
+    --This dependency was missing so mark all the depents unloadable
+    if(not RequiredMod) then
+      for name,mod in pairs(list) do
+        local tbl = MissingDependencys[name]
+
+        if(not tbl) then
+          tbl = {}
+          MissingDependencys[name] = tbl
+          print("Skipped Loading Mod %s because its missing dependency", name)
+        end
+        tbl[#tbl+1] = {modname, mod}
+        LoadableMods[name] = nil
+      end
+    else
+      --if it has no dependencys it must be a root node
+      if(not RequiredMod.Dependencys) then
+        RootList[#RootList+1] = RequiredMod
+      end
+    end
+  end
+
+  local NodeList = {}
+  
+  for modname,entry in pairs(LoadableMods) do
+    
+    --load all mods than have no dependencys and are not dependentts of other mods
+    if not Dependents[modname] and not entry.Dependencys then
+      print("Loading mod: "..entry.Name)
+
+		  if(entry:Load()) then
+		    ActiveMods[modname] = entry
+		  end
+		else
+		  local DependentList = Dependents[modname]
+
+		  if(DependentList) then
+		    --clear out any dependent mods that aren't loadable anymore because they are missing a dependencys
+		    for name,mod in pairs(DependentList) do
+		      if(not LoadableMods[name]) then
+		        DependentList[name] = nil
+		      end
+        end
+		    
+		    --TODO handle when all dependents have become non loadable
+		    entry.Dependents = DependentList
+		  end
+
+		  --build up a list of nodes for our topological sort
+		  NodeList[modname] = entry
+		end
+	end
+
+  local Sorted = {}
+  
+  while next(NodeList) do
+    
+    if(#RootList == 0) then
+      error("circular mod dependency detected")
+    end
+    
+    --deque next root node
+    local node = table.remove(RootList, 1)
+    local modname = node.InternalName
+    
+    Sorted[#Sorted+1] = node
+
+    if(node.Dependents) then
+      for name,childnode in pairs(node.Dependents) do
+        local ParentList = childnode.Dependencys
+        
+        --remove the parent link to us
+        if(ParentList) then
+          ParentList[modname] = nil      
+        end
+        
+        --if the node has no more parent links add it to the root list
+        if(not ParentList or not next(ParentList)) then
+          table.insert(RootList, childnode)
+        end
+        
+        node.Dependents[name] = nil
+      end
+    end
+    
+    NodeList[modname] = nil
+  end
+  
+  for _,entry in pairs(Sorted) do
+		print("Loading mod: "..entry.Name)
+
+		if(entry:Load()) then
+			ActiveMods[entry.InteralName] = entry
+		end
+	end
+end
+
