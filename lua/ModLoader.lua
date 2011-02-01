@@ -18,6 +18,9 @@ end
 local Mods = {}
 local ActiveMods = {}
 
+local VMName = (Server and "server") or "client"
+local OppositeVMName = (Server and "Client") or "Server"
+
 local function print(msg, ...)
 	
 	if(select('#', ...) == 0) then
@@ -30,7 +33,7 @@ end
 function ModLoader:Init()
 	self.SV = SavedVariables("ModLoader", {"DisabledMods"}, self)
 	self.SV:Load()
-	
+
 	self:ScannForMods()
 	self:LoadMods()
 	
@@ -40,8 +43,67 @@ function ModLoader:Init()
 		Event.Hook("Console_enableallmods", function() self:EnableAllMods() end) 
 		Event.Hook("Console_disableallmods", function() self:DisableAllMods() end) 
 		Event.Hook("Console_listmods", function() self:ListMods() end)
-	end
+		
+		Event.Hook("Console_ML_RequestCL", function() self:SendModListResponse() end)
+	else
+	  Event.Hook("Console_ML_RequestSV", function(client) self:SendModListResponse(client:GetControllingPlayer()) end)
+	  
 
+	  Event.Hook("Console_ML_ResponseCL", function(client, ...) self:HandleModListResponse(client, ...) end)
+	end
+end
+
+function ModLoader:HandleModListResponse(client, ...)
+  
+  --just incase any mods had spaces in there names
+  local listString = table.concat(..., "")
+  
+  local list = {}
+
+  string.gsub("([^:]+)", function(s) list[s] = true end)
+  
+  client.ModList = list
+  
+  for name,_ in pairs(list) do
+    local Mod = ActiveMods[name]
+
+    if(Mod) then
+      if(client) then
+        Mod:CallModFunction("OnClientHasMod", client)
+      else
+        Mod:CallModFunction("ServerHasMod")
+      end
+    end
+  end
+end
+
+function ModLoader:RequestModList(client)
+
+  Print("RequestModList")
+
+  local ConsoleCmd = (Server and "ML_RequestCL") or "ML_RequestSV"
+  
+  if(client) then
+    Server.ClientCommand(client, ConsoleCmd)
+  else
+    Shared.ConsoleCommand(ConsoleCmd)
+  end
+end
+
+function ModLoader:SendModListResponse(client)
+  
+  Print("SendModListResponse")
+  
+  local ConsoleCmd = (Server and "ML_ResponseSV ") or "ML_ResponseCL "
+  
+  ConsoleCmd = ConsoleCmd..table.concat(self:GetListOfActiveMods(), ":")
+  
+  
+  if(client) then
+    Server.ClientCommand(client, ConsoleCmd)
+  else
+    Client.ConsoleCommand(ConsoleCmd)
+  end
 end
 
 function ModLoader:GetListOfActiveMods()
@@ -198,13 +260,32 @@ function ModLoader:OnClientLuaFinished()
 end
 
 function ModLoader:OnServerLuaFinished()
+
+	Event.Hook("ClientConnect" , function(client) 
+	  client.ModRequestSent = Shared.GetTime()
+	  self:RequestModList(client)
+	end)
 	
 	for modname,entry in pairs(Mods) do
 		entry:OnServerLuaFinished()
 	end
 end
 
-local VMName = (Server and "server") or "client"
+function ModLoader:LoadMod(modName)
+  
+  local name = modName:lower()
+  local ModEntry = Mods[name]
+
+  if(not ModEntry) then
+    error("ModLoader:LoadMod No mod named "..modName)
+  end
+  
+  if(not ModEntry:CanLoadInVm(VMName)) then
+    error(string.format("LoadMod Error: Mod %s can only be loaded in the %s lua VM", modName, OppositeVMName))
+  end
+  
+  
+end
 
 function ModLoader:LoadMods()
 

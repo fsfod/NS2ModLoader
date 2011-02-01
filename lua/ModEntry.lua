@@ -9,28 +9,11 @@ LoadState = enum{
 local EntryMetaTable = {
 	__index = ModEntry,
 }
---[[
-local RealIncludes = {}
 
-function IncludesIndex(self, key)
-	return RealIncludes[key]
-end
-
-function IncludesNewIndex(self, key, value)
-	 RealIncludes[key] = value
-end
-
-for k,v in pairs(Script.includes) do
-	RealIncludes[k] = v
-	Script.includes[k] = nil
-end
-
-setmetatable(Script.includes, {__index = IncludesIndex, __newindex= IncludesNewIndex}) 
-]]--
 local IsRootFileSource = NS2_IO.IsRootFileSource
 
 local function PrintStackTrace(err) 
-	Shared.Message(err..debug.traceback())
+	Shared.Message(debug.traceback(err, 1))
 end
 
 function CreateModEntry(Source, dirname, IsArchive, pathInSource)
@@ -95,9 +78,9 @@ function ModEntry:LoadModinfo()
 	end
 
 	self.Modinfo = fields
-	
+
 	self.Valid = true
-	
+
 	if(fields.Dependencys) then
     local deps = {}
 
@@ -125,6 +108,23 @@ function ModEntry:CanLoad(vm)
   return (self.Valid and self.Modinfo.CanLateLoad)
 end
 
+function ModEntry:ModHasFunction(functionName)
+  return self.ModTable[functionName] ~= nil
+end
+
+function ModEntry:CallModFunction(functionName, ...)
+
+  local Function = self.ModTable[functionName]
+
+  if(Function) then
+   local success, retvalue = xpcall(Function, PrintStackTrace, self.ModTable, ...)
+   
+   return success, retvalue
+  end
+  
+  return nil
+end
+
 function ModEntry:CanLoadInVm(vm)
 	local validVM = self.Modinfo.ValidVM:lower()
 
@@ -134,6 +134,7 @@ end
 local RequiredFieldList ={
 	EntryPointFile = "string",
 	ValidVM = false,
+	EngineBuild = "number"
 }
 
 local OptionalFieldList = {
@@ -248,6 +249,13 @@ end
 function ModEntry:LoadEntryPointFile()
 	local fields = self.Modinfo
 
+  local EntryPointFile = JoinPaths(self.Path,fields.EntryPointFile)
+
+  if(not self.FileSource:FileExists(EntryPointFile)) then
+    Print("Error %s's mod entry point file does not exist", self.Name)
+   return false
+  end
+
 	local ChunkOrError = self.FileSource:LoadLuaFile(JoinPaths(self.Path,fields.EntryPointFile))
 
 	if(type(ChunkOrError) == "string") then
@@ -301,9 +309,7 @@ function ModEntry:LoadEntryPointFile()
 		end
 	end
 	
-	if(ModTable.OnLoad) then
-		xpcall(ModTable.OnLoad, PrintStackTrace, ModTable)
-	end
+	self:CallModFunction("OnLoad")
 	
 	self.IsLoaded = true
 end
@@ -314,15 +320,8 @@ function ModEntry:OnClientLuaFinished()
 		return
 	end
 
-	local ModTable = self.ModTable
-	
-	if(ModTable.OnClientLuaFinished) then
-		xpcall(ModTable.OnClientLuaFinished, PrintStackTrace, ModTable)
-	end
-	
-	if(ModTable.OnSharedLuaFinished) then
-		xpcall(ModTable.OnSharedLuaFinished, PrintStackTrace, ModTable)
-	end
+	self:CallModFunction("OnClientLuaFinished")
+	self:CallModFunction("OnSharedLuaFinished")
 end
 
 function ModEntry:OnServerLuaFinished()
@@ -331,24 +330,15 @@ function ModEntry:OnServerLuaFinished()
 		return
 	end
 
-	local ModTable = self.ModTable
-
-	if(ModTable.OnServerLuaFinished) then
-		xpcall(ModTable.OnServerLuaFinished, PrintStackTrace, ModTable)
-	end
-
-	if(ModTable.OnSharedLuaFinished) then
-		xpcall(ModTable.OnSharedLuaFinished, PrintStackTrace, ModTable)
-	end
+	self:CallModFunction("OnServerLuaFinished")
+	self:CallModFunction("OnSharedLuaFinished")
 end
 
 function ModEntry:CanDisable()
+
+	local success,ret = self:CallModFunction("CanDisable")
 	
-	if(self.ModTable.CanDisable) then
-		return self.ModTable:CanDisable()
-	end
-	
-	return false
+	return (success and ret) or false
 end
 
 
@@ -361,7 +351,5 @@ function ModEntry:Disable()
     error(self.Name.." cannot be runtime disabled")
   end
   
-	if(self.ModTable.Disable) then
-		self.ModTable:Disable()
-	end
+  self:CallModFunction("Disable")
 end
