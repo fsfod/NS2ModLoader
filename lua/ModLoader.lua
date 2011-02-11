@@ -1,22 +1,23 @@
-Script.Load("NS2_IO.lua")
+local HotReload = false
 
-local io = NS2_IO
-
-if(not io) then
-	return
-end
-
-Script.Load("lua/modentry.lua")
-Script.Load("lua/Utility.lua")
+local Mods, ActiveMods
 
 if(not ModLoader) then
 	ModLoader = {
 		DisabledMods = {}
 	}
+	
+	Mods = {}
+	ActiveMods = {}
+	ModLoader.Mods = Mods
+	ModLoader.ActiveMods = ActiveMods
+else
+  HotReload = true 
+  Mods = ModLoader.Mods
+  ActiveMods = ModLoader.ActiveMods
 end
 
-local Mods = {}
-local ActiveMods = {}
+ClassHooker:Mixin("ModLoader")
 
 local VMName = (Server and "server") or "client"
 local OppositeVMName = (Server and "Client") or "Server"
@@ -44,35 +45,67 @@ function ModLoader:Init()
 		Event.Hook("Console_disableallmods", function() self:DisableAllMods() end) 
 		Event.Hook("Console_listmods", function() self:ListMods() end)
 		
-		Event.Hook("Console_ML_RequestCL", function() self:SendModListResponse() end)
+		Event.Hook("Console_ML_ResponseSV", function() Print("Recv mod list") end)
+		
+		Event.Hook("Console_ML_RequestCL", function() 
+		  self:SendModListResponse() 
+		  Shared.ConsoleCommand("ML_RequestSV")
+		  
+		end)
 	else
 	  Event.Hook("Console_ML_RequestSV", function(client) self:SendModListResponse(client:GetControllingPlayer()) end)
 	  
 
 	  Event.Hook("Console_ML_ResponseCL", function(client, ...) self:HandleModListResponse(client, ...) end)
 	end
+	
+	self:SetHooks()
+end
+
+function ModLoader:SetHooks()
+
+  if(Server) then
+    self:PostHookClassFunction("Gamerules", "OnClientConnect")
+  end
+end
+
+function ModLoader:OnClientConnect(selfobj, client)
+ 
+  local ent = client:GetControllingPlayer()
+
+  client.ModRequestSent = Shared.GetTime()
+	self:RequestModList(ent)
+
+  self:DispatchModCallback("OnClientConnect", client, ent)
+end
+
+function ModLoader:DispatchModCallback(functionName, ...)
+  for _,mod in pairs(ActiveMods) do
+    mod:CallModFunction(functionName, ...)
+  end
 end
 
 function ModLoader:HandleModListResponse(client, ...)
-  
+
   --just incase any mods had spaces in there names
-  local listString = table.concat(..., "")
-  
+  local listString = table.concat({...}, "")
+
+  Print("HandleModListResponse %s", listString)
+
   local list = {}
 
-  string.gsub("([^:]+)", function(s) list[s] = true end)
+  string.gsub(listString, "([^:]+)", function(s) list[s] = true end)
   
   client.ModList = list
-  
-  for name,_ in pairs(list) do
-    local Mod = ActiveMods[name]
 
-    if(Mod) then
-      if(client) then
-        Mod:CallModFunction("OnClientHasMod", client)
-      else
-        Mod:CallModFunction("ServerHasMod")
-      end
+  for modName,_ in pairs(list) do
+   local mod = ActiveMods[modName]
+    if(mod) then
+     if(Server) then
+       mod:CallModFunction("ClientHasMod", client)
+     else
+       mod:CallModFunction("ServerHasMod", client)
+     end
     end
   end
 end
@@ -83,8 +116,8 @@ function ModLoader:RequestModList(client)
 
   local ConsoleCmd = (Server and "ML_RequestCL") or "ML_RequestSV"
   
-  if(client) then
-    Server.ClientCommand(client, ConsoleCmd)
+  if(Server) then
+    Server.SendCommand(client, ConsoleCmd)
   else
     Shared.ConsoleCommand(ConsoleCmd)
   end
@@ -92,11 +125,13 @@ end
 
 function ModLoader:SendModListResponse(client)
   
-  Print("SendModListResponse")
+  local modlist = table.concat(self:GetListOfActiveMods(), ":")
+  
+  Print("SendModListResponse "..modlist)
   
   local ConsoleCmd = (Server and "ML_ResponseSV ") or "ML_ResponseCL "
   
-  ConsoleCmd = ConsoleCmd..table.concat(self:GetListOfActiveMods(), ":")
+  ConsoleCmd = ConsoleCmd..modlist
   
   
   if(client) then
@@ -110,7 +145,7 @@ function ModLoader:GetListOfActiveMods()
   
   local list = {}
 
-  for name,_ in pairs(ActiveMods) do
+  for name,mod in pairs(ActiveMods) do
     list[#list+1] = name
   end
 
@@ -118,11 +153,11 @@ function ModLoader:GetListOfActiveMods()
 end
 
 function ModLoader:ListMods()
-	for name,_ in pairs(Mods) do
+	for name,mod in pairs(Mods) do
 		if(self.DisabledMods[name]) then
 			print("%s : Disabled", name)
 		else
-			if(ActiveMods[name]) then
+			if(ActiveMods[mod.InternalName]) then
 				print("%s : Enabled(Active)", name)
 			else
 				print("%s : Enabled(Inactive)", name)
@@ -207,7 +242,7 @@ end
 
 function ModLoader:ScannForMods()
 
-	for dirname,Source in pairs(io.FindDirectorys("/Mods/","")) do
+	for dirname,Source in pairs(NS2_IO.FindDirectorys("/Mods/","")) do
  		
 		local modinfopath = string.format("/Mods/%s/modinfo.lua", dirname)
 		
@@ -224,10 +259,10 @@ function ModLoader:ScannForMods()
 		rar = true
 	}
 	
-	for fileName,Source in pairs(io.FindFiles("/Mods/","")) do
+	for fileName,Source in pairs(NS2_IO.FindFiles("/Mods/","")) do
 	
 		if(SupportedArchives[(GetExtension(fileName) or ""):lower()]) then
-			local success, archiveOrError = pcall(io.OpenArchive, Source, "/Mods/"..fileName)
+			local success, archiveOrError = pcall(NS2_IO.OpenArchive, Source, "/Mods/"..fileName)
 	
 			if(success) then
 				if(archiveOrError:FileExists("modinfo.lua")) then
@@ -253,22 +288,11 @@ function ModLoader:ScannForMods()
 end
 
 function ModLoader:OnClientLuaFinished()
-	
-	for modname,entry in pairs(Mods) do
-		entry:OnClientLuaFinished()
-	end
+	self:DispatchModCallback("OnClientLuaFinished")
 end
 
 function ModLoader:OnServerLuaFinished()
-
-	Event.Hook("ClientConnect" , function(client) 
-	  client.ModRequestSent = Shared.GetTime()
-	  self:RequestModList(client)
-	end)
-	
-	for modname,entry in pairs(Mods) do
-		entry:OnServerLuaFinished()
-	end
+	self:DispatchModCallback("OnServerLuaFinished")
 end
 
 function ModLoader:LoadMod(modName)
@@ -316,7 +340,7 @@ function ModLoader:LoadMods()
       print("Loading mod: "..entry.Name)
 
 		  if(entry:Load()) then
-		    ActiveMods[modname] = entry
+		    ActiveMods[entry.InternalName] = entry
 		  end
     end
   end
@@ -422,8 +446,11 @@ function ModLoader:HandleModsDependencys(LoadableMods, Dependents)
 		print("Loading mod: "..entry.Name)
 
 		if(entry:Load()) then
-			ActiveMods[entry.InteralName] = entry
+			ActiveMods[entry.InternalName] = entry
 		end
 	end
 end
 
+if HotReload then
+  ModLoader:SetHooks()
+end

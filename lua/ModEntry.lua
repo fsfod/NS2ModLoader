@@ -1,5 +1,13 @@
 ModEntry = {}
 
+local xpcall = xpcall
+
+if(decoda_output) then
+  xpcall = function(func, exp, ...)
+    return true,func(...)
+  end
+end
+
 LoadState = enum{
 	MissingModinfoFile,
 	FailedToParseModinfo,
@@ -132,17 +140,18 @@ function ModEntry:CanLoadInVm(vm)
 end
 
 local RequiredFieldList ={
-	EntryPointFile = "string",
 	ValidVM = false,
-	EngineBuild = "number"
+	EngineBuild = "number",
+	ModTableName = "string",
 }
 
 local OptionalFieldList = {
 	SavedVaribles = "table",
-	ExtraFiles = "table",
-	OverrideFiles = "table",
-	ModTableName = "string",
-	CanLateLoad = "boolean"
+	MainScript = "string",
+	ScriptList = "table",
+	ScriptOverrides = "table",
+	
+	CanLateLoad = "boolean",
 }
 
 function ModEntry:ValidateModinfo() 
@@ -166,7 +175,7 @@ function ModEntry:ValidateModinfo()
 			end
 		end
 	end
-		
+
 	for fieldName,fieldType in pairs(OptionalFieldList) do
 		if(fieldlist[fieldName]) then		
 			if(type(fieldlist[fieldName]) ~= fieldType) then
@@ -174,13 +183,6 @@ function ModEntry:ValidateModinfo()
 				
 				fieldlist[fieldName] = nil
 			end
-		end
-	end
-	
-	if(valid) then
-		--ModTableName defaults to the name of the entry point file with the extension striped off
-		if(not fieldlist.ModTableName) then
-			fieldlist.ModTableName = StripExtension(fieldlist.EntryPointFile)
 		end
 	end
 	
@@ -195,45 +197,75 @@ function ModEntry:ValidateModinfo()
 
   self.Valid = valid
 
+  if(valid) then  
+    if(_G[fieldlist.ModTableName]) then
+      Print("%s's modinfo specifed a mod table name of %s but there is already a table named that in the global table", self.Name, fieldlist.ModTableName)
+     return false
+    end
+  
+    if(not fieldlist.ScriptList and not fieldlist.MainScript) then
+      Print("%s's modinfo did not specife any lua scripts to load", self.Name)
+     return false
+    end
+  end
+  
+
 	return valid
 end
 
 function ModEntry:Load()
 	
-	if(not self.ModTable) then
-		local fields = self.Modinfo
-
-			if(fields.ExtraFiles) then
-				for _,filepath in ipairs(fields.ExtraFiles) do
-					if(type(filepath) == "string") then
-						self:RunLuaFile(filepath)
-					else
-						Print("Skipping entry that is a not a string in ExtraFiles table of %s modinfo", self.Name)
-					end
-				end
-			end
-
-		if(fields.OverrideFiles) then
-			for replacing,replacer in pairs(fields.OverrideFiles) do
-				if(type(replacing) == "string") then
-					
-					replacer = (type(replacer) == "string" and replacer) or replacing
-					
-					if(self.GameFileSystemPath) then
-						xpcall(LoadTracker.SetFileOverride, Shared.Message, LoadTracker, replacing, JoinPaths(self.GameFileSystemPath, replacing))
-					else
-						xpcall(LoadTracker.SetFileOverride, Shared.Message, LoadTracker, replacing, JoinPaths(self.Path, replacer), self.FileSource)
-					end
+	if(self.ModTable) then
+	  return true
+	end
+	  
+	local fields = self.Modinfo
+	
+	if(fields.ScriptOverrides) then
+		for replacing,replacer in pairs(fields.ScriptOverrides) do
+			if(type(replacing) == "string") then
+				--default to the same path as the replacing file if theres just a placeholder bool
+				replacer = (type(replacer) == "string" and replacer) or replacing
+				
+				if(self.GameFileSystemPath) then
+					xpcall(LoadTracker.SetFileOverride, Shared.Message, LoadTracker, replacing, JoinPaths(self.GameFileSystemPath, replacer))
 				else
-					Print("Skipping entry that is a not a string in OverrideFiles table of %s modinfo", self.Name)
+					xpcall(LoadTracker.SetFileOverride, Shared.Message, LoadTracker, replacing, JoinPaths(self.Path, replacer), self.FileSource)
 				end
+			else
+				Print("Skipping entry that is a not a string in ScriptOverrides table of %s modinfo", self.Name)
 			end
 		end
-		
-		return (xpcall(self.LoadEntryPointFile, Shared.Message, self))
 	end
-	
-	return true
+
+  local mainScript = fields.MainScript and fields.MainScript:lower()
+  local mainScriptResult = nil
+
+  if(fields.ScriptList) then
+	  for _,filepath in ipairs(fields.ScriptList) do
+	  	if(type(filepath) == "string") then
+	  	  
+	  	  if(mainScript and #mainScript == #filepath and mainScript == filepath:lower()) then
+	  	    --we found the main script listed in the scriptlist so load it now
+	  	    mainScriptResult = self:LoadMainScript()
+	  	  else
+	  	    self:RunLuaFile(filepath)
+	  	  end
+	  	else
+	  		Print("Skipping entry that is a not a string in ScriptList table of %s modinfo", self.Name)
+	  	end
+	  end
+	end
+
+  //if there was no ScriptList or the MainScript wasn't found in ScriptList we the run the MainScript/main loading phase now
+	if(mainScriptResult == nil) then
+		if(mainScript) then
+		  return self:LoadMainScript()
+		else
+		  return self:MainLoadPhase()
+		end
+	end
+
 end
 
 function ModEntry:RunLuaFile(path)
@@ -246,20 +278,21 @@ function ModEntry:RunLuaFile(path)
 	return not RunScriptFromSource(self.FileSource, JoinPaths(self.Path, path))
 end
 
-function ModEntry:LoadEntryPointFile()
+function ModEntry:LoadMainScript()
 	local fields = self.Modinfo
 
-  local EntryPointFile = JoinPaths(self.Path,fields.EntryPointFile)
+  local MainScript = self.Modinfo.MainScript
+  local MainScriptFile = JoinPaths(self.Path, MainScript)
 
-  if(not self.FileSource:FileExists(EntryPointFile)) then
+  if(not self.FileSource:FileExists(MainScriptFile)) then
     Print("Error %s's mod entry point file does not exist", self.Name)
    return false
   end
 
-	local ChunkOrError = self.FileSource:LoadLuaFile(JoinPaths(self.Path,fields.EntryPointFile))
+	local ChunkOrError = self.FileSource:LoadLuaFile(MainScriptFile)
 
 	if(type(ChunkOrError) == "string") then
-		Print("Error while parsing entry point file for %s:%s", self.Name, ChunkOrError)
+		Print("Error while parsing the main script of mod %s:%s", self.Name, ChunkOrError)
 	 return false
 	end
 
@@ -267,21 +300,27 @@ function ModEntry:LoadEntryPointFile()
 	local success = xpcall(ChunkOrError, SetStackTrace)
 
 	if(not success) then
-		Print("Error while running entry point of mod %s :%s", self.Name, StackTrace)
+		Print("Error while running the main script of mod %s :%s", self.Name, StackTrace)
 	 return false
 	end
 	
+	if(self.GameFileSystemPath) then
+	 local path = NormalizePath(JoinPaths(self.GameFileSystemPath, MainScript))
+		--mark it for hotreloading
+		Script.includes[path] = true
+	end
+	
+	return self:MainLoadPhase()
+end
+
+function ModEntry:MainLoadPhase()
+  
+  local fields = self.Modinfo
 	local ModTable = _G[fields.ModTableName]
 
 	if(not ModTable) then
 		Print(self.Name.." modtable could not be found after loading")
 	 return false
-	end
-	
-	if(self.GameFileSystemPath) then
-	 local path = NormalizePath(JoinPaths(self.GameFileSystemPath, fields.EntryPointFile))
-		--mark it for hotreloading
-		Script.includes[path] = true
 	end
 	
 	self.ModTable = ModTable
@@ -312,6 +351,8 @@ function ModEntry:LoadEntryPointFile()
 	self:CallModFunction("OnLoad")
 	
 	self.IsLoaded = true
+  
+  return true
 end
 
 function ModEntry:OnClientLuaFinished()
