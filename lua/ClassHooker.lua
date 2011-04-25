@@ -30,6 +30,24 @@ hooks can request ordering based on the id of other hookers i.e. before and afte
 be able to remove and reorder hooks without issue
 ]]--
 
+local NormalHook = 0
+local PostHook = 1
+local RawHook = 2
+local ReplaceHook = 3
+
+HookType = {
+  Normal = NormalHook,
+  Post = PostHook,
+  Raw = RawHook,
+  Replace = ReplaceHook,
+}
+
+local HookNumToString = {
+  [NormalHook] = "Normal",
+  [PostHook] = "Post",
+  [RawHook] = "Raw",
+  [ReplaceHook] = "Replace",
+}
 
 
 
@@ -41,23 +59,25 @@ if(not ClassHooker) then
 
 ClassHooker = {
 	ClassObjectToName = {},
-	--used to keep track of the base class of each class so we know if its safe to modfify them
+
 	ChildClass = {Entity = {}},
 	LinkedClasss = {},
 	
 	ClassDeclaredCb = {},
 	ClassFunctionHooks = {},
 	
+	LibaryHooks = {},
 	FunctionHooks = {},
 	
 	SelfTableToId = {},
 	
-	FileNameToClass = {},
+	FileNameToObject = {},
 	CreatedIn = {},
 	
 	LuabindTables = {},
 	
 	MainLuaLoadingFinished = false,
+	InstantHookLibs = {["Client"] = true, ["Server"] = true, ["Shared"] = true}
 }
 
 end
@@ -176,63 +196,41 @@ SelfFuncHookHandleMT_PassHandle = {
 	__index = HookHandleFunctions,
 }
 
-local reg = debug.getregistry()
-
-local function GetClassTables(t)
-
-	if(type(t) == "string") then
-		local c = _G[t]
-		
-		if(not c) then
-			error("cannot find a class called "..t)
-		end
-		t = c
-	end
-	
-	local StaticTable = select(2, debug.getmetatable(t).__towatch(t))
-	local index
-
-	for i,v in ipairs(reg) do
-		if(v == StaticTable) then
-			index = i
-			break
-		end
-	end
-
-	if(index) then
-		--lol implemention detail
-		return StaticTable, reg[index-1]
-	end
-end
-
 function ClassHooker:GetLuabindTables(class)
 	
-	local tables = self.LuabindTables[class]
+	local classtbl = self.LuabindTables[class]
 	
-	if(not tables) then
-		local static, instance = GetClassTables(class)
+	if(not classtbl) then
+		classtbl = _G[class]
 		
 		if(not static) then
-			error("Couldn't get luabind tables for "..class)
+			error("Couldn't get class tables for "..class)
 		end
-		
-		tables = {static, instance}
-		self.LuabindTables[class] = tables
+
+		self.LuabindTables[class] = classtbl
 	end
 	
-	return tables
+	return classtbl
 end
 
 function ClassHooker:PropergateHookToSubClass(class, funcName, hook, oldFunc)
 
-	local tables = self:GetLuabindTables(class)
+	local classtbl = _G[class]
+    
+  if(not classtbl) then
+    error(string.format("ClassHooker:PropergateHookToSubClass class %s no longer seems to exist", class))
+  end
+ 
+  local static = classtbl[funcName]
 
-	--just check the instance table
-	if(tables[1][funcName] == oldFunc) then
-		tables[1][funcName] = hook
-		tables[2][funcName] = hook
+  if(not static) then
+    error(string.format("ClassHooker:PropergateHookToSubClass class %s no longer has a function called %s", class, funcName))
+  end
+
+	if(static == oldFunc) then
+		classtbl[funcName] = hook
 	end
-	
+
 	if(self.ChildClass[class]) then
 		for _,name in pairs(self.ChildClass[class]) do
 			self:PropergateHookToSubClass(name, funcName, hook, oldFunc)
@@ -268,7 +266,16 @@ end
 
 function ClassHooker:CreateAndSetHook(hookData, funcname)
 
-	local Container = hookData.Library or _G
+	local Container = _G
+	
+	if(hookData.Library) then
+	  Container = _G[hookData.Library]
+	  
+	  if(not Container) then
+		  error(string.format("ClassHooker:CreateAndSetHook Library \"%s\" does not exist%s", hookData.Library))
+	  end
+	end
+	
 	local OrignalFunction = Container[funcname]
 	
 	if(not OrignalFunction) then
@@ -281,7 +288,7 @@ function ClassHooker:CreateAndSetHook(hookData, funcname)
 	end
 
 	--we have this so we have a second copy for when a hook disable calling the orignal by replacing Orignal with a dummy function through BlockCallOrignal
-	hookData.RealOrignal = Orignal
+	hookData.RealOrignal = OrignalFunction
 
 	hookData.Dispatcher	= DispatchBuilder:CreateDispatcher(hookData)
   hookData.Name = funcname
@@ -321,11 +328,11 @@ local function CheckCreateHookTable(hookTable, functionName, hookType)
 	hookTable = hookTable[functionName]
 	
 	if(hookType) then
-		if(hookType == "Raw") then
+		if(hookType == RawHook) then
 			if(not hookTable.Raw) then
 				hookTable.Raw = {}
 			end
-		elseif(hookType == "Post") then
+		elseif(hookType == PostHook) then
 			if(not hookTable.Post) then
 				hookTable.Post = {}
 			end
@@ -348,46 +355,58 @@ end
 
 --args classname functioName, FuncOrSelf, [callbackFuncName]
 function ClassHooker:RawHookClassFunction(classname, ...)
-	return self:HookClassFunctionType("Raw", ...)
+	return self:HookClassFunctionType(RawHook, ...)
 end
 
 --args classname functioName, FuncOrSelf, [callbackFuncName]
 function ClassHooker:HookClassFunction(...)
-	return self:HookClassFunctionType("Normal", ...)
+	return self:HookClassFunctionType(NormalHook, ...)
 end
 
 --args classname functioName, FuncOrSelf, [callbackFuncName]
 function ClassHooker:ReplaceClassFunction(...)
-	return self:HookClassFunctionType("Replace", ...)
+	return self:HookClassFunctionType(ReplaceHook, ...)
 end
 
 --args classname functioName, FuncOrSelf, [callbackFuncName]
 function ClassHooker:PostHookClassFunction(...)
-	return self:HookClassFunctionType("Post", ...)
+	return self:HookClassFunctionType(PostHook, ...)
 end
 
---args classname functioName, FuncOrSelf, [callbackFuncName]
-function ClassHooker:RawHookFunction(classname, ...)
-	return self:HookFunctionType("Raw", ...)
+--args functioName, FuncOrSelf, [callbackFuncName]
+function ClassHooker:RawHookFunction(...)
+  if(type(select(2, ...)) == "string") then
+	  return self:HookLibraryFunctionType(RawHook, ...)
+	else
+	  return self:HookFunctionType(RawHook, ...)
+	end
 end
 
---args classname functioName, FuncOrSelf, [callbackFuncName]
+--args  functioName, FuncOrSelf, [callbackFuncName]
 function ClassHooker:HookFunction(...)
-	return self:HookFunctionType("Normal", ...)
+	if(type(select(2, ...)) == "string") then
+	  return self:HookLibraryFunctionType(NormalHook, ...)
+	else
+	  return self:HookFunctionType(NormalHook, ...)
+	end
 end
 
---args classname functioName, FuncOrSelf, [callbackFuncName]
+--args functioName, FuncOrSelf, [callbackFuncName]
 function ClassHooker:PostHookFunction(...)
-	return self:HookFunctionType("Post", ...)
+	if(type(select(2, ...)) == "string") then
+	  return self:HookLibraryFunctionType(PostHook, ...)
+	else
+	  return self:HookFunctionType(PostHook, ...)
+	end
 end
 
 local function CreateHookEntry(hookType, HookData, FuncOrSelf, callbackFuncName)
 	
 	local hookTable = HookData
 	
-	if(hookType == "Raw") then
+	if(hookType == RawHook) then
 		hookTable = HookData.Raw
-	elseif(hookType == "Post") then
+	elseif(hookType == PostHook) then
 		hookTable = HookData.Post
 	end
 
@@ -399,7 +418,7 @@ local function CreateHookEntry(hookType, HookData, FuncOrSelf, callbackFuncName)
 		handle = setmetatable({FuncOrSelf[callbackFuncName], FuncOrSelf, HookData}, SelfFuncHookHandleMT)
 	end
 	
-	if(hookType ~= "Replace") then
+	if(hookType ~= ReplaceHook) then
 		table.insert(hookTable, handle)
 	else
 		if(hookTable.Orignal) then
@@ -411,6 +430,45 @@ local function CreateHookEntry(hookType, HookData, FuncOrSelf, callbackFuncName)
 
 		hookTable.Orignal = handle
 		hookTable.ReplacedOrignal = handle
+	end
+	
+	return handle
+end
+
+function ClassHooker:HookLibraryFunctionType(hookType, libName, functionName, FuncOrSelf, callbackFuncName)
+
+  local LibHookList = self.LibaryHooks[libName]
+  
+  if(not LibHookList) then
+    LibHookList = {}
+    self.LibaryHooks[libName] = LibHookList
+  end
+
+  local HookData = LibHookList[functionName]
+  
+  if(not HookData) then
+    HookData = {Library = libName}
+		LibHookList[functionName] = HookData
+	end
+	
+	if(hookType == RawHook) then
+	  if(not HookData.Raw) then
+	    HookData.Raw = {}
+	  end
+	elseif(hookType == PostHook) then
+	  if(not HookData.Post) then
+	    HookData.Post = {}
+	  end
+	end
+
+  local handle = CreateHookEntry(hookType, HookData, FuncOrSelf, callbackFuncName or functionName)
+
+  if(self.InstantHookLibs[libName] or self.MainLuaLoadingFinished) then
+		if(HookData.Dispatcher) then
+			self:UpdateDispatcher(HookData)
+		else
+			self:CreateAndSetHook(HookData, functionName)
+		end
 	end
 	
 	return handle
@@ -511,22 +569,25 @@ function ClassHooker:UpdateDispatcher(hookData)
   local FunctionName = hookData.Name 
 
   if(hookData.Class) then
-    local tables = self:GetLuabindTables(hookData.Class)
-    local static, instance = tables[1][FunctionName], tables[2][FunctionName]
-  
-    if(not (instance == hookData.RealOrignal and static == hookData.RealOrignal)) then
-      if(static ~= hookData.Dispatcher) then
-       error(string.format("ClassHooker:UpdateDispatcher current hook dispatcher for class %s was not the expected value(static table)", hookData.Class))
-      end
+    local classtbl = _G[hookData.Class]
     
-      if(instance ~= hookData.Dispatcher) then
-        error(string.format("ClassHooker:UpdateDispatcher current hook dispatcher for class %s was not the expected value(instance table)", hookData.Class))
-      end
+    if(not classtbl) then
+      error(string.format("ClassHooker:UpdateDispatcher class %s no longer seems to exist", hookData.Class))
+    end
+    
+    local static = classtbl[FunctionName]
+
+    if(not static) then
+      error(string.format("ClassHooker:UpdateDispatcher class %s no longer has a function called %s", hookData.Class, FunctionName))
+    end
+
+    if(not static == hookData.RealOrignal and static ~= hookData.Dispatcher) then
+      error(string.format("ClassHooker:UpdateDispatcher current hook dispatcher for class %s was not the expected value", hookData.Class))
     end
 
     self:PropergateHookToSubClass(hookData.Class, FunctionName, newDispatcher, hookData.Dispatcher)
   else
-    local containerTable = hookData.Library or _G
+    local containerTable = (hookData.Library and _G[hookData.Library]) or _G
 
     if(containerTable[hookData.Name] ~= hookData.Dispatcher) then
       if(hookData.Library) then
@@ -585,6 +646,7 @@ local reg = debug.getregistry()
 
 local Original_Class = _G.class
 
+
 function class(...) 
 	return ClassHooker:Class_Hook(...)
 end
@@ -597,6 +659,18 @@ function ClassHooker:Class_Hook(classname)
 	self.ChildClass[classname] = {}
 
 	self.ClassObjectToName[ _G[classname]] = classname
+
+  local mt = getmetatable(_G[classname])
+  local call = mt.__call
+  
+  mt.__call = function(rep,...)
+    local ret = call(rep)
+    if(ret.__init) then
+      ret:__init(...)
+    end
+   return ret
+  end
+  
 
 	return 	function(classObject) 
 						stage2(classObject)
@@ -627,23 +701,45 @@ end
 
 function ClassHooker:ScriptLoadFinished(scriptPath)
 	
-	local classlist = self.FileNameToClass[scriptPath]
+	local objectlist = self.FileNameToObject[scriptPath]
 	
-	if(classlist) then
-		for _,className in ipairs(classlist) do
-			self:OnClassFullyDefined(className)
+	if(objectlist) then
+		for _,ObjectName in ipairs(objectlist) do
+
+		  if(self.ClassFunctionHooks[ObjectName]) then
+			  self:OnClassFullyDefined(ObjectName)
+			else
+				-- just sanity check that there are any hooks set
+				if(self.LibaryHooks[ObjectName]) then
+					for funcName,hooktbl in pairs(self.LibaryHooks[ObjectName]) do
+						self:CreateAndSetHook(hooktbl, funcName)
+					end
+				end
+			end
+
 		end
 	end
 end
 
 function ClassHooker:SetClassCreatedIn(class, luafile)
 	
-	local path = LoadTracker.NormalizePath(luafile)
+	if(not luafile) then
+	  luafile = "lua/"..class..".lua"
+	end
 	
-	if(not self.FileNameToClass[path]) then
-		self.FileNameToClass[path] = {class}
+	local path = LoadTracker.NormalizePath(luafile)
+	//
+	if(self.CreatedIn[class]) then
+		if(self.CreatedIn[class] ~= path) then
+			error(string.format("ClassHooker:SetClassCreatedIn 2 diffent paths have been set for the same class(%s) %s and %s", class, self.CreatedIn[class], path))
+		end
+	 return
+	end
+	
+	if(not self.FileNameToObject[path]) then
+		self.FileNameToObject[path] = {class}
 	else
-		table.insert(self.FileNameToClass[path], class)
+		table.insert(self.FileNameToObject[path], class)
 	end
 	
 	self.CreatedIn[class] = path
@@ -684,17 +780,23 @@ function ClassHooker:OnLuaFullyLoaded()
 end
 
 local function Mixin_HookClassFunctionType(self, hooktype, classname, funcName, callbackFuncName)
-
+	
 	--default to the to using a function with the same name as the hooked funcion
 	if(not callbackFuncName) then
 		callbackFuncName = funcName
 	end
 
-	if(not self[callbackFuncName]) then
-		error(string.format("ClassHooker:HookClassFunctionType hook callback function \"%s\" does not exist", callbackFuncName))
-	end
+	local handle
 
-	local handle = ClassHooker:HookClassFunctionType(hooktype, classname, funcName, self, callbackFuncName)
+	if(type(callbackFuncName) == "string") then
+		if(not self[callbackFuncName]) then
+			error(string.format("ClassHooker:HookClassFunctionType hook callback function \"%s\" does not exist", callbackFuncName))
+		end
+		
+		handle = ClassHooker:HookClassFunctionType(hooktype, classname, funcName, self, callbackFuncName)
+	else
+		handle = ClassHooker:HookClassFunctionType(hooktype, classname, funcName, callbackFuncName)
+	end
 
 	table.insert(self.ClassHooker_Hooks, handle)
 
@@ -708,53 +810,81 @@ local function Mixin_HookFunctionType(self, hooktype, funcName, callbackFuncName
 		callbackFuncName = funcName
 	end
 
-	if(not self[callbackFuncName]) then
-		error(string.format("ClassHooker:HookFunctionType hook callback function \"%s\" does not exist", callbackFuncName))
+	local handle
+	
+	if(type(callbackFuncName) == "string") then
+		if(not self[callbackFuncName]) then
+			error(string.format("ClassHooker:HookFunctionType hook callback function \"%s\" does not exist", callbackFuncName))
+		end
+		
+		handle = ClassHooker:HookFunctionType(hooktype, funcName, self, callbackFuncName)
+	else
+		handle = ClassHooker:HookFunctionType(hooktype, funcName, callbackFuncName)
 	end
-
-	local handle = ClassHooker:HookFunctionType(hooktype, funcName, self, callbackFuncName)
 
 	table.insert(self.ClassHooker_Hooks, handle)
 
 	return handle
 end
 
-/*
-TODO 
-	Add a Remove all hooks function
+local function Mixin_HookLibraryFunction(self, hooktype, libName, funcName, callbackFuncName)
+	
+	--default to the to using a function with the same name as the hooked funcion
+	if(not callbackFuncName) then
+		callbackFuncName = funcName
+	end
+	
+	local handle
+	
+	if(type(callbackFuncName) == "string") then
+		if(not self[callbackFuncName]) then
+			error(string.format("ClassHooker:HookLibraryFunction hook callback function \"%s\" does not exist", callbackFuncName))
+		end
 
-*/
+		handle = ClassHooker:HookLibraryFunctionType(hooktype, libName, funcName, self, callbackFuncName)
+	else
+		handle = ClassHooker:HookLibraryFunctionType(hooktype, libName, funcName, callbackFuncName)
+	end
+
+	table.insert(self.ClassHooker_Hooks, handle)
+
+	return handle
+end
+
 local MixInList = {
+  
+  HookLibraryFunction = Mixin_HookLibraryFunction,
+  
 	HookClassFunction = function (self, ...)
-		return Mixin_HookClassFunctionType(self, "Normal", ...)
+		return Mixin_HookClassFunctionType(self, NormalHook, ...)
 	end,
 
 	RawHookClassFunction = function (self, ...)
-		return Mixin_HookClassFunctionType(self, "Raw", ...)
+		return Mixin_HookClassFunctionType(self, RawHook, ...)
 	end,
 
 	PostHookClassFunction = function (self, ...)
-		return Mixin_HookClassFunctionType(self, "Post", ...)
+		return Mixin_HookClassFunctionType(self, PostHook, ...)
 	end,
 
 	ReplaceClassFunction = function (self, ...)
-		return Mixin_HookClassFunctionType(self, "Replace", ...)
+		return Mixin_HookClassFunctionType(self, ReplaceHook, ...)
 	end,
 	
 	HookFunction = function (self, ...)
-		return Mixin_HookFunctionType(self, "Normal", ...)
+		return Mixin_HookFunctionType(self, NormalHook, ...)
 	end,
 	
 	RawHookFunction = function (self, ...)
-		return Mixin_HookFunctionType(self, "Raw", ...)
+		return Mixin_HookFunctionType(self, RawHook, ...)
 	end,
 
 	PostHookFunction = function (self, ...)
-		return Mixin_HookFunctionType(self, "Post", ...)
+		return Mixin_HookFunctionType(self, PostHook, ...)
 	end,
 
 	ReplaceFunction = function (self, ...)
-		return Mixin_HookFunctionType(self, "Replace", ...)
+		return Mixin_HookFunctionType(self, ReplaceHook, ...)
 	end,
 	
 	RemoveAllHooks = function(self)

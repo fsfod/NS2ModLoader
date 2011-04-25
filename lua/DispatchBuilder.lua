@@ -83,10 +83,6 @@ function DispatchBuilder:CreateSinglePost(hookData)
 	end
 end
 
-function DispatchBuilder:UpdateDispatcher(hookData)
-	hookData.Dispatcher = self:CreateDispatcher(hookData, hookData.Class)
-end
-
 function DispatchBuilder:CreateDispatcher(hookData, isClassFunction)
 
 	if(#hookData == 1 and not hookData.Raw and not hookData.Post) then
@@ -147,6 +143,13 @@ local function CreateTblPassingString(entryCoount)
 	end
 
 	return table.concat(str, "")
+end
+
+function CaptureMultiValueResult(...)
+
+  local count = select('#', ...)
+
+  return count > 1, (count == 1 and ...) or (count > 1 and {...}) or nil
 end
 
 local function RawArgsToNormalHooks(hookData, ...)
@@ -364,3 +367,45 @@ setmetatable(RawDispatcherI, {
 		return func
 	end
 })
+
+
+local function CreateXpDis(argCount)
+  
+  if(decoda_output) then
+	//	return UnsafeDispatcher
+	end
+  
+	local code = [[
+	  local xpcall = ...
+    
+	  local method, ARGS
+	  local function call() return method(ARGS) end
+    
+	  local function dispatch(func, eh, ...)
+	    method = func
+	  	ARGS = ...
+	  	return xpcall(call, eh)
+	  end
+    
+	  return dispatch
+	]]
+
+	local ARGS = {}
+	for i = 1, argCount do
+	  ARGS[i] = "arg"..i 
+	end
+	
+	code = code:gsub("ARGS", table.concat(ARGS, ", "))
+	return assert(loadstring(code, "Xpcall Dispatcher["..argCount.."]"))(xpcall)
+end
+
+local XPDispatchers = setmetatable({}, {__index=function(self, argCount)
+	local dispatcher = CreateXpDis(argCount)
+	  rawset(self, argCount, dispatcher)
+	
+	return dispatcher
+end})
+
+function xpcall2(func, eh, ...)
+  return XPDispatchers[select('#', ...)](func, eh, ...)
+end

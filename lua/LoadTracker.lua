@@ -15,16 +15,20 @@ local orignalLoad = Script.Load
 Script.Load = function(scriptPath)
 	
 	local normPath = NormalizePath(scriptPath)
-	local NewPath = LoadTracker:ScriptLoadStart(normPath)
+	local NewPath = LoadTracker:ScriptLoadStart(normPath, scriptPath)
+	
+	local ret
 	
 	if(NewPath) then
-		orignalLoad(NewPath)
+		ret = orignalLoad(NewPath)
 	end
+	
+	assert(ret ==  nil)
 	
 	LoadTracker:ScriptLoadFinished(normPath)
 end
 
-function LoadTracker:ScriptLoadStart(normalizedsPath)
+function LoadTracker:ScriptLoadStart(normalizedsPath, unnormalizedsPath)
 	table.insert(self.LoadStack, normalizedsPath)
 	
 	--store the stack index so we can be sure were not reacting to a double load of the same file
@@ -48,7 +52,7 @@ function LoadTracker:ScriptLoadStart(normalizedsPath)
 		end
 	end
 	
-	return normalizedsPath
+	return unnormalizedsPath
 end
 
 function LoadTracker:HookFileLoadFinished(scriptPath, selfTable, funcName)
