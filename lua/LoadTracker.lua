@@ -3,6 +3,7 @@ LoadTracker = {
 	LoadStack = {},
 	LoadedScripts = {},
 	
+	LoadAfterScripts = {},
 	LoadedFileHooks = {},
 	OverridedFiles = {},
 }
@@ -10,9 +11,13 @@ LoadTracker = {
 
 LoadTracker.NormalizePath = NormalizePath
 
-local orignalLoad = Script.Load
+local Script_Load = Script.Load
 
 Script.Load = function(scriptPath)
+	//just let the real script.load bomb on bad paramters
+	if(not scriptPath or type(scriptPath) ~= "string") then
+		Script_Load(scriptPath)
+	end
 	
 	local normPath = NormalizePath(scriptPath)
 	local NewPath = LoadTracker:ScriptLoadStart(normPath, scriptPath)
@@ -20,7 +25,7 @@ Script.Load = function(scriptPath)
 	local ret
 	
 	if(NewPath) then
-		ret = orignalLoad(NewPath)
+		ret = Script_Load(NewPath)
 	end
 	
 	assert(ret ==  nil)
@@ -64,11 +69,36 @@ function LoadTracker:HookFileLoadFinished(scriptPath, selfTable, funcName)
 	end
 	
 	if(not self.LoadedFileHooks[path]) then
-		self.LoadedFileHooks[path] = {{selfTable, selfTable[funcName]}}
+		self.LoadedFileHooks[path] = {{selfTable[funcName] , selfTable}}
 	else
-		table.insert(self.LoadedFileHooks[path], {selfTable, selfTable[funcName]})
+		table.insert(self.LoadedFileHooks[path], {selfTable[funcName] , selfTable})
 	end
 end
+
+function LoadTracker:LoadScriptAfter(scriptPath, afterScriptPath, afterScriptSource)
+
+	local normPath = NormalizePath(scriptPath)
+	
+	if(self.LoadedScripts[normPath]) then
+		error("cannot set LoadScriptAfter for "..scriptPath.." because the file is already loaded")
+	end
+
+	local entry = afterScriptPath
+
+	if(afterScriptSource) then
+		entry = {afterScriptSource, afterScriptPath}
+	end
+	
+	local loadAfterList = self.LoadAfterScripts[normPath] 
+	
+	if(not loadAfterList) then
+	  loadAfterList = {}
+	  self.LoadAfterScripts[normPath] = loadAfterList
+	end
+	
+	 loadAfterList[#loadAfterList+1] = entry
+end
+
 
 function LoadTracker:SetFileOverride(tobeReplaced, overrider, overriderSource)
 	
@@ -97,11 +127,23 @@ function LoadTracker:ScriptLoadFinished(normalizedsPath)
 	if(self.LoadedScripts[normalizedsPath] == #self.LoadStack) then
 		if(self.LoadedFileHooks[normalizedsPath]) then
 			for _,hook in ipairs(self.LoadedFileHooks[normalizedsPath]) do
-				hook[2](hook[1])
+				hook[1](hook[2])
 			end
 		end
-		
-		if(ClassHooker) then
+
+		local LoadAfter = self.LoadAfterScripts[normalizedsPath]
+
+		if(LoadAfter) then
+		  for _,entry in ipairs(LoadAfter) do
+				if(type(entry) ~= "table") then
+		  	  Script.Load(entry)
+	      else
+		      RunScriptFromSource(entry[1], entry[2])
+		    end
+			end
+    end
+    
+    if(ClassHooker) then
 			ClassHooker:ScriptLoadFinished(normalizedsPath)
 		end
 		
@@ -109,7 +151,46 @@ function LoadTracker:ScriptLoadFinished(normalizedsPath)
 	end
 
 	table.remove(self.LoadStack)
+end
 
+
+function LoadTracker:SetFileInjection(targetfile, inject, class)
+
+  if(not class or type(class) == "string") then
+    self.InjectedFiles[targetfile] = {inject, nil, class}
+  else
+    
+  end
+end
+
+function LoadTracker:CheckInject(className, mapname)
+  local currentfile = LoadTracker.LoadStack[#self.LoadStack]
+  
+  local Injector = currentfile and self.InjectedFiles[currentfile]
+
+  if(Injector and Injector[3] == className) then
+    if(not Injector[2]) then
+			Script.Load(Injector[1])
+	  else
+			RunScriptFromSource(Injector[2], Injector[1])
+		end
+  end
+end
+
+--Hook Shared.LinkClassToMap so we know when we can insert any hooks for a class
+local OrginalLinkClassToMap = Shared.LinkClassToMap
+
+Shared.LinkClassToMap = function(...)
+ 
+  local classname, entityname = ...
+  
+  --let the orignal function spit out an error if we don't have the correct args
+  if(classname and entityname) then
+    ///LoadTracker:CheckInject(...)
+	  ClassHooker:LinkClassToMap(...)
+  end
+	
+	OrginalLinkClassToMap(...)
 end
 
 function LoadTracker:GetCurrentLoadingFile()

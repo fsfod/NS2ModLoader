@@ -240,9 +240,9 @@ end
 
 function ClassHooker:RuntimeHookClass(class, funcname, hookData)
 	
-	local tables = self:GetLuabindTables(class)
+	local classTable = _G[class]
 
-	local OrignalFunction = tables[1][funcname]
+	local OrignalFunction = classTable[funcname]
 	
 	if(not OrignalFunction) then
 		error(string.format("ClassHooker:RuntimeHookClass function \"%s\" in class %s does not exist", funcname, class))
@@ -663,13 +663,18 @@ function ClassHooker:Class_Hook(classname)
   local mt = getmetatable(_G[classname])
   local call = mt.__call
   
-  mt.__call = function(rep,...)
-    local ret = call(rep)
-    if(ret.__init) then
-      ret:__init(...)
-    end
-   return ret
-  end
+	--make sure we don't inject our __call function more than once(like when a file is hot reloaded) 
+  if(not mt.CHInit) then
+		mt.__call = function(rep,...)
+			local ret = call(rep)
+			if(ret.__init) then
+				ret:__init(...)
+			end
+		 return ret
+		end
+		
+	 mt.CHInit = true
+	end
   
 
 	return 	function(classObject) 
@@ -678,19 +683,7 @@ function ClassHooker:Class_Hook(classname)
 					end
 end
 
---Hook Shared.LinkClassToMap so we know when we can insert any hooks for a class
-local OrginalLinkClassToMap = Shared.LinkClassToMap
-
-Shared.LinkClassToMap = function(...)
-		ClassHooker:LinkClassToMap(...)
-	OrginalLinkClassToMap(...)
-end
-
 function ClassHooker:LinkClassToMap(classname, entityname)
-	--let the orignal function spit out an error
-	if(not classname or not entityname) then
-		return
-	end
 
 	if(entityname) then
 		self.LinkedClasss[classname] = true
