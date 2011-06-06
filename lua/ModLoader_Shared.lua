@@ -1,5 +1,6 @@
 Script.Load("lua/Globals.lua")
 Script.Load("lua/Utility.lua")
+Script.Load("lua/Table.lua")
 
 Script.Load("lua/PathUtil.lua")
 Script.Load("lua/EventUtil.lua")

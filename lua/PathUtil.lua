@@ -56,7 +56,7 @@ function GetExtension(filename)
 	local index = string.find(filename, "%.", -#filename)
 
 	if(index) then
-		return string.sub(filename, index+1)
+		return string.sub(filename, index)
 	end
 end
 
@@ -73,9 +73,7 @@ function RunScriptFromSource(source, path)
 	 return false
 	end
 
-	--just run it in the global enviroment
 	local success = xpcall(ChunkOrError, WriteStackTrace)
 
-	
 	return success
 end

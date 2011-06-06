@@ -1,6 +1,6 @@
 local HotReload = false
 
-local Mods, ActiveMods
+local Mods, ActiveMods, OrderedActiveMods
 
 if(not ModLoader) then
 	ModLoader = {
@@ -9,6 +9,7 @@ if(not ModLoader) then
 	
 	Mods = {}
 	ActiveMods = {}
+	OrderedActiveMods = {}
 	ModLoader.Mods = Mods
 	ModLoader.ActiveMods = ActiveMods
 else
@@ -38,28 +39,39 @@ function ModLoader:Init()
 	self:ScannForMods()
 	self:LoadMods()
 	
-	if(Client) then
+	self:SetHooks()
+end
+
+function ModLoader:Init_EmbededMode()
+  self:SetupConsoleCommands()
+  self:SetHooks()
+end
+
+function ModLoader:SetupConsoleCommands()
+
+  if(Client) then
 		Event.Hook("Console_enablemod", function(modName) self:EnableMod(modName) end)
 		Event.Hook("Console_disablemod", function(modName) self:DisableMod(modName) end)
 		Event.Hook("Console_enableallmods", function() self:EnableAllMods() end) 
 		Event.Hook("Console_disableallmods", function() self:DisableAllMods() end) 
 		Event.Hook("Console_listmods", function() self:ListMods() end)
-		
-		Event.Hook("Console_ML_ResponseSV", function() Print("Recv mod list") end)
-		
-		Event.Hook("Console_ML_RequestCL", function() 
-		  self:SendModListResponse() 
-		  Shared.ConsoleCommand("ML_RequestSV")
-		  
-		end)
-	else
-	  Event.Hook("Console_ML_RequestSV", function(client) self:SendModListResponse(client:GetControllingPlayer()) end)
-	  
-
-	  Event.Hook("Console_ML_ResponseCL", function(client, ...) self:HandleModListResponse(client, ...) end)
 	end
-	
-	self:SetHooks()
+
+	if(not self.Embeded) then
+	  if(Client) then
+		  Event.Hook("Console_ML_ResponseSV", function() Print("Recv mod list") end)
+		
+		  Event.Hook("Console_ML_RequestCL", function() 
+		    self:SendModListResponse() 
+		    Shared.ConsoleCommand("ML_RequestSV")
+		  
+		  end)
+	  else
+	    Event.Hook("Console_ML_RequestSV", function(client) self:SendModListResponse(client:GetControllingPlayer()) end)
+	    Event.Hook("Console_ML_ResponseCL", function(client, ...) self:HandleModListResponse(client, ...) end)
+	  end
+	end
+
 end
 
 function ModLoader:SetHooks()
@@ -80,7 +92,7 @@ function ModLoader:OnClientConnect(selfobj, client)
 end
 
 function ModLoader:DispatchModCallback(functionName, ...)
-  for _,mod in pairs(ActiveMods) do
+  for _,mod in ipairs(OrderedActiveMods) do
     mod:CallModFunction(functionName, ...)
   end
 end
@@ -152,6 +164,31 @@ function ModLoader:GetListOfActiveMods()
   return list
 end
 
+function ModLoader:GetModInfo(name)
+  
+  local modentry = Mods[name]
+  
+  local disabled = self.DisabledMods[name]
+  
+  if(disabled == nil) then
+    disabled = false
+  end
+  
+  
+  return disabled, modentry.Name, modentry.LoadState
+end
+
+function ModLoader:GetModList()
+  
+  local list = {}
+
+  for name,mod in pairs(Mods) do
+    list[#list+1] = name
+  end
+
+  return list
+end
+
 function ModLoader:ListMods()
 	for name,mod in pairs(Mods) do
 		if(self.DisabledMods[name]) then
@@ -184,6 +221,12 @@ function ModLoader:DisableAllMods()
 	end
 end
 
+function ModLoader:ModEnableStateChanged(name)
+  if(self.SV) then
+    self.SV:Save()
+  end
+end
+
 function ModLoader:EnableMod(modName)
 	
 	if(not modName) then
@@ -200,7 +243,7 @@ function ModLoader:EnableMod(modName)
 
 	self.DisabledMods[name] = false
 	
-	self.SV:Save()
+	self:ModEnableStateChanged(name)
 	
 	print("Mod %s set to enabled a restart is require for this mod tobe loaded", modName)
 	
@@ -222,9 +265,7 @@ function ModLoader:DisableMod(modName)
 	end
 	
 	self.DisabledMods[name] = true
-	
-	self.SV:Save()
-	
+
 	if(ActiveMods[name]) then
 	  
 	  if(ActiveMods[name]:CanDisable()) then
@@ -236,6 +277,8 @@ function ModLoader:DisableMod(modName)
 	else
 		print("DisableMod: Mod %s set to disabled", modName)
 	end
+	
+	self:ModEnableStateChanged(name)
 	
 	return true
 end
@@ -253,12 +296,9 @@ function ModLoader:ScannForMods()
 		Mods[dirname:lower()] = CreateModEntry(Source, dirname)
 	end
 	
-	local SupportedArchives = {
-		zip = true,
-		["7z"] = true,
-		rar = true
-	}
+	local SupportedArchives = NS2_IO.GetSupportedArchiveFormats()
 	
+	--scan for mods are contained in archives that are in our "Mods" folder
 	for fileName,Source in pairs(NS2_IO.FindFiles("/Mods/","")) do
 	
 		if(SupportedArchives[(GetExtension(fileName) or ""):lower()]) then
@@ -340,6 +380,7 @@ function ModLoader:LoadMods()
       print("Loading mod: "..entry.Name)
 
 		  if(entry:Load()) then
+		    OrderedActiveMods[#OrderedActiveMods+1] = entry
 		    ActiveMods[entry.InternalName] = entry
 		  end
     end
@@ -358,14 +399,7 @@ function ModLoader:HandleModsDependencys(LoadableMods, Dependents)
     --This dependency was missing so mark all the depents unloadable
     if(not RequiredMod) then
       for name,mod in pairs(list) do
-        local tbl = MissingDependencys[name]
-
-        if(not tbl) then
-          tbl = {}
-          MissingDependencys[name] = tbl
-          print("Skipped Loading Mod %s because its missing dependency", name)
-        end
-        tbl[#tbl+1] = {modname, mod}
+        mod:OnDependencyMissing(modname)
         LoadableMods[name] = nil
       end
     else
@@ -385,6 +419,7 @@ function ModLoader:HandleModsDependencys(LoadableMods, Dependents)
       print("Loading mod: "..entry.Name)
 
 		  if(entry:Load()) then
+		    OrderedActiveMods[#OrderedActiveMods+1] = entry
 		    ActiveMods[modname] = entry
 		  end
 		else
@@ -442,11 +477,16 @@ function ModLoader:HandleModsDependencys(LoadableMods, Dependents)
     NodeList[modname] = nil
   end
   
-  for _,entry in pairs(Sorted) do
+  local FailedToLoaded = {}
+  
+  for _,entry in ipairs(Sorted) do
 		print("Loading mod: "..entry.Name)
 
 		if(entry:Load()) then
+		  OrderedActiveMods[#OrderedActiveMods+1] = entry 
 			ActiveMods[entry.InternalName] = entry
+		else
+		  FailedToLoaded[entry.InternalName] = true
 		end
 	end
 end
