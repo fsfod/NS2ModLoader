@@ -5,12 +5,19 @@ Event.Hook("a", dummyFunc)
 
 local HookTable = debug.getregistry()["Event.HookTable"]
 
+setmetatable(HookTable, {
+__index = function(self, key) 
+	RawPrint(key)
+	return rawget(self, key)
+end
+})
+
 Event.RemoveHook = function(event, hook)
   
   local hookList = HookTable[event]
 
   if(not hookList) then
-    Print("There are no hooks set for an event named %s", event)
+    RawPrint("There are no hooks set for an event named %s", event)
    return false
   end
   

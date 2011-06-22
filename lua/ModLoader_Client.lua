@@ -5,7 +5,14 @@ if(not NS2_IO) then
  return
 end
 
+
 Script.Load("lua/ModLoader_Shared.lua")
+
+Script.Load("lua/PlayerEvents.lua")
+Script.Load("lua/ModLoader.lua")
+Script.Load("lua/ModEntry.lua")
+
+ModLoader:Init()
 
 Script.Load("lua/Client.lua")
 ModLoader:OnClientLuaFinished()

@@ -279,7 +279,12 @@ function ClassHooker:CreateAndSetHook(hookData, funcname)
 	local OrignalFunction = Container[funcname]
 	
 	if(not OrignalFunction) then
-		error(string.format("ClassHooker:CreateAndSetHook function \"%s\" does not exist%s", funcname, (hookData.Library and "in Library ") or ""))
+		error(string.format("ClassHooker:CreateAndSetHook function \"%s\" does not exist%s", funcname, (hookData.Library and "in library ") or ""))
+	end
+	
+	//we do allow the crazy edge case of table with a call __call operator but not userdata because it could be a class
+	if(type(OrignalFunction) ~= "function" and (type(OrignalFunction) ~= "table" or getmetable(OrignalFunction).__call == nil)) then
+		error(string.format("ClassHooker:CreateAndSetHook function \"%s\"%s is not valid hook target because its not a function", funcname, (hookData.Library and (" in library "..hookData.Library)) or ""))
 	end
 
 	--don't write to Orignal if a hook has called BlockOrignalCall already which changes Orignal to an empty funtion
@@ -656,26 +661,32 @@ function ClassHooker:Class_Hook(classname)
 	
 	local stage2 = Original_Class(classname)
 		
-	self.ChildClass[classname] = {}
-
-	self.ClassObjectToName[ _G[classname]] = classname
-
   local mt = getmetatable(_G[classname])
   local call = mt.__call
-  
+
+  if(not self.ChildClass[classname]) then
+    self.ChildClass[classname] = {}
+  end
+
 	--make sure we don't inject our __call function more than once(like when a file is hot reloaded) 
-  if(not mt.CHInit) then
-		mt.__call = function(rep,...)
-			local ret = call(rep)
-			if(ret.__init) then
-				ret:__init(...)
-			end
-		 return ret
-		end
-		
-	 mt.CHInit = true
+  if(not mt.CHInit) then		
+	  mt.CHInit = call
+	else
+	  //reuse our captured constructor
+	  call = mt.CHInit
 	end
+	
+	self.ClassObjectToName[ _G[classname]] = classname
   
+  mt.__call = function(rep,...)
+	  local ret = call(rep)
+	  
+	  if(ret.__init) then
+	  	ret:__init(...)
+	  end
+	  
+	 return ret
+	end
 
 	return 	function(classObject) 
 						stage2(classObject)
@@ -767,7 +778,7 @@ function ClassHooker:OnLuaFullyLoaded()
 		if(_G[funcName]) then
 			self:CreateAndSetHook(hooktbl, funcName)
 		else
-			Print("ClassHooker: Skipping hook for function \"%s\" because it cannot be found", funcName)
+			RawPrint("ClassHooker: Skipping hook for function \"%s\" because it cannot be found", funcName)
 		end
 	end
 end
@@ -906,7 +917,7 @@ function ClassHooker:Mixin(classTableOrName, IdString)
 	end
 
 	if(classTableOrName.ClassHooker_Hooks) then
-		Print("either hot loading or double call to ClassHooker:Mixin detected removing all hooks set")
+		RawPrint("either hot loading or double call to ClassHooker:Mixin detected removing all hooks set")
 			classTableOrName:RemoveAllHooks()
 		return true
 	end

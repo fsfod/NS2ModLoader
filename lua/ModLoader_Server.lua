@@ -7,6 +7,11 @@ end
 
 Script.Load("lua/ModLoader_Shared.lua")
 
+Script.Load("lua/ModLoader.lua")
+Script.Load("lua/ModEntry.lua")
+
+ModLoader:Init()
+
 Script.Load("lua/server.lua")
 ModLoader:OnServerLuaFinished()
 ClassHooker:OnLuaFullyLoaded()

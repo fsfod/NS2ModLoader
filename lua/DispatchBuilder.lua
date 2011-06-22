@@ -1,5 +1,7 @@
 DispatchBuilder = {}
  
+local RawDispatcherI, RawClassDispatcherI
+ 
 --maybe we could create all these dispatchers as closeure
 function DispatchBuilder:CreateNormal(hookData)
 
@@ -85,26 +87,27 @@ end
 
 function DispatchBuilder:CreateDispatcher(hookData, isClassFunction)
 
-	if(#hookData == 1 and not hookData.Raw and not hookData.Post) then
+  local Normal = #hookData
+  local Raw = hookData.Raw ~= nil and #hookData.Raw
+  local Post = hookData.Post ~= nil and #hookData.Post
+
+	if(Normal == 1 and not Raw and not Post) then
 		return self:CreateNormal(hookData)
 	end
 
-	if(#hookData == 0) then
-		if(hookData.Raw and #hookData.Raw == 1 and not hookData.Post) then
+	if(Normal == 0) then
+		if(Raw == 1 and not Post) then
 			if(hookData.Class) then
 				return self:CreateSingleClassRaw(hookData)
 			else
 			  return self:CreateSingleRaw(hookData)
 			end
-		elseif(hookData.Post and #hookData.Post == 1 and not hookData.Raw) then
+		elseif(Post == 1 and not Raw) then
 			return self:CreateSinglePost(hookData)
 		else
-		  
-		  if(hookData.ReplacedOrignal) then
+		  if(hookData.ReplacedOrignal and not Post and not Raw) then
 		    local hook = hookData.ReplacedOrignal
 			 return function(...) return hook(...) end
-			else
-			  return nil
 			end
 		end
 	end
@@ -169,7 +172,7 @@ function DispatchBuilder:CreateMultiHookClassDispatcher(hookData)
 	  local retvalue
     
 	  if(hookData.Raw) then
-	  	retvalue = hookData.Orignal(RawArgsToNormalHooks(hookData, select(1, ...), RawClassDispatcherI[#hookData.Raw](...)))
+	  	retvalue = hookData.Orignal(RawArgsToNormalHooks(hookData, select(1, ...), RawClassDispatcherI[#hookData.Raw](hookData.Raw, ...)))
 	  else
 	  	RawArgsToNormalHooks(hookData,...)
 	  	retvalue = hookData.Orignal(...)
@@ -202,7 +205,7 @@ function DispatchBuilder:CreateMultiHookDispatcher(hookData)
 	  local retvalue
     
 	  if(hookData.Raw) then
-	  	retvalue = hookData.Orignal(RawArgsToNormalHooks(hookData, RawDispatcherI[#hookData.Raw](...)))
+	  	retvalue = hookData.Orignal(RawArgsToNormalHooks(hookData, RawDispatcherI[#hookData.Raw](hookData.Raw, ...)))
 	  else
 	  	RawArgsToNormalHooks(hookData, ...)
 	  	retvalue = hookData.Orignal(...)
@@ -336,7 +339,7 @@ function CreateCustom(hookData)
 end
 
 
-local RawClassDispatcherI = {
+RawClassDispatcherI = {
 	[0] = function(...) return ... end,
 	function (tbl, self, ...) return tbl[1](self, ...) end,
 	function (tbl, self, ...) return tbl[2](self, tbl[1](self, ...)) end,
@@ -352,7 +355,7 @@ setmetatable(RawClassDispatcherI, {
 	end
 })
 
-local RawDispatcherI = {
+RawDispatcherI = {
 	[0] = function(...) return ... end,
 	function (tbl, self, ...) return tbl[1](self, ...) end,
 	function (tbl, self, ...) return tbl[2](self, tbl[1](self, ...)) end,
@@ -367,45 +370,3 @@ setmetatable(RawDispatcherI, {
 		return func
 	end
 })
-
-
-local function CreateXpDis(argCount)
-  
-  if(decoda_output) then
-	//	return UnsafeDispatcher
-	end
-  
-	local code = [[
-	  local xpcall = ...
-    
-	  local method, ARGS
-	  local function call() return method(ARGS) end
-    
-	  local function dispatch(func, eh, ...)
-	    method = func
-	  	ARGS = ...
-	  	return xpcall(call, eh)
-	  end
-    
-	  return dispatch
-	]]
-
-	local ARGS = {}
-	for i = 1, argCount do
-	  ARGS[i] = "arg"..i 
-	end
-	
-	code = code:gsub("ARGS", table.concat(ARGS, ", "))
-	return assert(loadstring(code, "Xpcall Dispatcher["..argCount.."]"))(xpcall)
-end
-
-local XPDispatchers = setmetatable({}, {__index=function(self, argCount)
-	local dispatcher = CreateXpDis(argCount)
-	  rawset(self, argCount, dispatcher)
-	
-	return dispatcher
-end})
-
-function xpcall2(func, eh, ...)
-  return XPDispatchers[select('#', ...)](func, eh, ...)
-end

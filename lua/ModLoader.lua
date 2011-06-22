@@ -4,18 +4,21 @@ local Mods, ActiveMods, OrderedActiveMods
 
 if(not ModLoader) then
 	ModLoader = {
-		DisabledMods = {}
+		DisabledMods = {},
+		OrderedActiveMods = {},
+		ActiveMods = {},
+		Mods = {},
 	}
 	
-	Mods = {}
-	ActiveMods = {}
-	OrderedActiveMods = {}
-	ModLoader.Mods = Mods
-	ModLoader.ActiveMods = ActiveMods
+	
+	//ActiveMods = {}
+	
+	//ModLoader.Mods = Mods
+	//ModLoader.ActiveMods = ActiveMods
 else
   HotReload = true 
-  Mods = ModLoader.Mods
-  ActiveMods = ModLoader.ActiveMods
+  //Mods = ModLoader.Mods
+  //ActiveMods = ModLoader.ActiveMods
 end
 
 ClassHooker:Mixin("ModLoader")
@@ -23,14 +26,6 @@ ClassHooker:Mixin("ModLoader")
 local VMName = (Server and "server") or "client"
 local OppositeVMName = (Server and "Client") or "Server"
 
-local function print(msg, ...)
-	
-	if(select('#', ...) == 0) then
-		Shared.Message(msg)
-	else
-		Shared.Message(string.format(msg, ...))
-	end
-end
 
 function ModLoader:Init()
 	self.SV = SavedVariables("ModLoader", {"DisabledMods"}, self)
@@ -45,6 +40,7 @@ end
 function ModLoader:Init_EmbededMode()
   self:SetupConsoleCommands()
   self:SetHooks()
+  self:ScannForMods()
 end
 
 function ModLoader:SetupConsoleCommands()
@@ -92,7 +88,7 @@ function ModLoader:OnClientConnect(selfobj, client)
 end
 
 function ModLoader:DispatchModCallback(functionName, ...)
-  for _,mod in ipairs(OrderedActiveMods) do
+  for _,mod in ipairs(self.OrderedActiveMods) do
     mod:CallModFunction(functionName, ...)
   end
 end
@@ -102,7 +98,7 @@ function ModLoader:HandleModListResponse(client, ...)
   --just incase any mods had spaces in there names
   local listString = table.concat({...}, "")
 
-  Print("HandleModListResponse %s", listString)
+  RawPrint("HandleModListResponse %s", listString)
 
   local list = {}
 
@@ -111,7 +107,8 @@ function ModLoader:HandleModListResponse(client, ...)
   client.ModList = list
 
   for modName,_ in pairs(list) do
-   local mod = ActiveMods[modName]
+   local mod = self.Mods[modName]
+   
     if(mod) then
      if(Server) then
        mod:CallModFunction("ClientHasMod", client)
@@ -124,7 +121,7 @@ end
 
 function ModLoader:RequestModList(client)
 
-  Print("RequestModList")
+  RawPrint("RequestModList")
 
   local ConsoleCmd = (Server and "ML_RequestCL") or "ML_RequestSV"
   
@@ -139,7 +136,7 @@ function ModLoader:SendModListResponse(client)
   
   local modlist = table.concat(self:GetListOfActiveMods(), ":")
   
-  Print("SendModListResponse "..modlist)
+  RawPrint("SendModListResponse "..modlist)
   
   local ConsoleCmd = (Server and "ML_ResponseSV ") or "ML_ResponseCL "
   
@@ -157,7 +154,7 @@ function ModLoader:GetListOfActiveMods()
   
   local list = {}
 
-  for name,mod in pairs(ActiveMods) do
+  for name,mod in pairs(self.ActiveMods) do
     list[#list+1] = name
   end
 
@@ -166,7 +163,7 @@ end
 
 function ModLoader:GetModInfo(name)
   
-  local modentry = Mods[name]
+  local modentry = self.Mods[name]
   
   local disabled = self.DisabledMods[name]
   
@@ -178,26 +175,29 @@ function ModLoader:GetModInfo(name)
   return disabled, modentry.Name, modentry.LoadState
 end
 
-function ModLoader:GetModList()
+function ModLoader:GetModList(justOptional)
   
   local list = {}
 
-  for name,mod in pairs(Mods) do
-    list[#list+1] = name
+  for name,mod in pairs(self.Mods) do
+    if(not justOptional or not mod.Required) then
+      list[#list+1] = name
+    end
   end
 
   return list
 end
 
 function ModLoader:ListMods()
-	for name,mod in pairs(Mods) do
+  
+	for name,mod in pairs(self.Mods) do
 		if(self.DisabledMods[name]) then
-			print("%s : Disabled", name)
+			RawPrint("%s : Disabled", name)
 		else
-			if(ActiveMods[mod.InternalName]) then
-				print("%s : Enabled(Active)", name)
-			else
-				print("%s : Enabled(Inactive)", name)
+			if(mod:IsActive()) then
+				RawPrint("%s : Enabled(Active)", name)
+			elseif(mod:HasStartupErrors()) then
+				RawPrint("%s : Enabled but encountered fatal error while loading", name)
 			end
 		end
 	end
@@ -205,8 +205,8 @@ end
 
 function ModLoader:EnableAllMods()
 	
-	for name,_ in pairs(Mods) do
-		if(self.DisabledMods[name]) then
+	for name,mod in pairs(self.Mods) do
+		if(not mod.Required and self.DisabledMods[name]) then
 			self:EnableMod(name)
 		end
 	end
@@ -214,8 +214,8 @@ end
 
 function ModLoader:DisableAllMods()
 	
-	for name,_ in pairs(Mods) do
-		if(not self.DisabledMods[name]) then
+	for name,mod in pairs(self.Mods) do
+		if(not self.DisabledMods[name] and not mod.Required) then
 			self:DisableMod(name)
 		end
 	end
@@ -230,14 +230,14 @@ end
 function ModLoader:EnableMod(modName)
 	
 	if(not modName) then
-		print("EnableMod: Need to specify the name of a mod to enable")
+		RawPrint("EnableMod: Need to specify the name of a mod to enable")
 	 return false
 	end
 	
 	local name = modName:lower()
 	
-	if(not Mods[name]) then
-		print("EnableMod: No mod named "..modName.." installed")
+	if(not self.Mods[name]) then
+		RawPrint("EnableMod: No mod named "..modName.." installed")
 	 return false
 	end
 
@@ -245,7 +245,7 @@ function ModLoader:EnableMod(modName)
 	
 	self:ModEnableStateChanged(name)
 	
-	print("Mod %s set to enabled a restart is require for this mod tobe loaded", modName)
+	RawPrint("Mod %s set to enabled a restart is require for this mod tobe loaded", modName)
 	
 	return true
 end
@@ -253,29 +253,34 @@ end
 function ModLoader:DisableMod(modName)
 	
 	if(not modName) then
-		print("DisableMod: Need to specify the name of a mod to disable")
+		RawPrint("DisableMod: Need to specify the name of a mod to disable")
 	 return false
 	end
 	
 	local name = modName:lower()
+	local mod = self.Mods[name]
 	
-	if(not Mods[name]) then
-		print("DisableMod: No mod named "..modName.." installed")
+	if(not mod) then
+		RawPrint("DisableMod: No mod named "..modName.." installed")
 	 return false
+	end
+	
+	if(mod.Required) then
+	   RawPrint("DisableMod: Cannot disable required mod "..modName)
+	  return false
 	end
 	
 	self.DisabledMods[name] = true
 
-	if(ActiveMods[name]) then
-	  
-	  if(ActiveMods[name]:CanDisable()) then
-	    ActiveMods[name]:Disable()
-	    print("DisableMod: Mod %s has been set to disabled and has activly disabled its self", modName)
+	if(mod:IsActive()) then	  
+	  if(mod:CanDisable()) then
+	    mod:Disable()
+	    RawPrint("DisableMod: Mod %s has been set to disabled and has activly disabled its self", modName)
 	  else
-	    print("DisableMod: Mod %s set to disabled this mod will still be loaded for this session", modName)
+	    RawPrint("DisableMod: Mod %s set to disabled this mod will still be loaded for this session", modName)
 	  end
 	else
-		print("DisableMod: Mod %s set to disabled", modName)
+		RawPrint("DisableMod: Mod %s set to disabled", modName)
 	end
 	
 	self:ModEnableStateChanged(name)
@@ -290,10 +295,10 @@ function ModLoader:ScannForMods()
 		local modinfopath = string.format("/Mods/%s/modinfo.lua", dirname)
 		
 		if(not Source:FileExists(modinfopath)) then
-			print("Skiping mod directory \"%s\" that has no modinfo.lua in it", dirname)
+			RawPrint("Skiping mod directory \"%s\" that has no modinfo.lua in it", dirname)
+		else
+		  self.Mods[dirname:lower()] = CreateModEntry(Source, dirname)
 		end
-		
-		Mods[dirname:lower()] = CreateModEntry(Source, dirname)
 	end
 	
 	local SupportedArchives = NS2_IO.GetSupportedArchiveFormats()
@@ -308,19 +313,19 @@ function ModLoader:ScannForMods()
 				if(archiveOrError:FileExists("modinfo.lua")) then
 					local modname = StripExtension(fileName)
 					
-					Mods[modname:lower()] = CreateModEntry(archiveOrError, modname, true)
+					self.Mods[modname:lower()] = CreateModEntry(archiveOrError, modname, true)
 				else
 				  local dirlist = archiveOrError:FindDirectorys("", "")
 				  local modname = dirlist[1]
 				  --if theres no modinfo.lua in the root of the archive see if the archive contains a single directory that has a modinfo.lua in it
 				  if(#dirlist == 1 and archiveOrError:FileExists(modname.."/modinfo.lua")) then
-				    Mods[modname:lower()] = CreateModEntry(archiveOrError, modname, true, modname.."/")
+				    self.Mods[modname:lower()] = CreateModEntry(archiveOrError, modname, true, modname.."/")
 				  else
-				    print("Skiping mod archive \"%s\" that has no modinfo.lua in it", fileName)
+				    RawPrint("Skiping mod archive \"%s\" that has no modinfo.lua in it", fileName)
 				  end
 				end
 			else
-				print("error while opening mod archive %s :\n%s", fileName, archiveOrError)
+				RawPrint("error while opening mod archive %s :\n%s", fileName, archiveOrError)
 			end
 		end
 		
@@ -338,7 +343,7 @@ end
 function ModLoader:LoadMod(modName)
   
   local name = modName:lower()
-  local ModEntry = Mods[name]
+  local ModEntry = self.Mods[name]
 
   if(not ModEntry) then
     error("ModLoader:LoadMod No mod named "..modName)
@@ -357,7 +362,7 @@ function ModLoader:LoadMods()
   --a hashtable The key is the name of mod. the value a keyvalue list of mods that depend on the mod
   local Dependents = {}
 
-  for modname,entry in pairs(Mods) do
+  for modname,entry in pairs(self.Mods) do
 		if entry:LoadModinfo() and not self.DisabledMods[modname] and entry:CanLoadInVm(VMName) then
 		  LoadableMods[modname] = entry
 
@@ -376,12 +381,13 @@ function ModLoader:LoadMods()
   if(next(Dependents)) then
     self:HandleModsDependencys(LoadableMods, Dependents)
   else
+    local ordered = self.OrderedActiveMods
+    
     for modname,entry in pairs(LoadableMods) do
-      print("Loading mod: "..entry.Name)
+      RawPrint("Loading mod: "..entry.Name)
 
 		  if(entry:Load()) then
-		    OrderedActiveMods[#OrderedActiveMods+1] = entry
-		    ActiveMods[entry.InternalName] = entry
+		    ordered[#orderd+1] = entry
 		  end
     end
   end
@@ -392,16 +398,33 @@ function ModLoader:HandleModsDependencys(LoadableMods, Dependents)
   
   local MissingDependencys = {}
   local RootList = {}
-
+	
+	local PropagateUnloadable
+	PropagateUnloadable = function(modname, notFirst)
+		for name,mod in pairs(Dependents[modname]) do
+      mod:OnDependencyLoadError(modname)
+      LoadableMods[name] = nil
+     
+      if(Dependents[name]) then
+        PropagateUnloadable(name, true)
+      end
+    end
+	end
+	/*
+	for i=1,debug.getinfo(PropagateUnloadable,"u").nups do
+		local name = debug.setupvalue(PropagateUnloadable, i, nil)
+		
+		if(name == "PropagateUnloadable") then
+			debug.setupvalue(PropagateUnloadable, i, PropagateUnloadable)
+		end
+	end
+*/
   for modname,list in pairs(Dependents) do
     local RequiredMod = LoadableMods[modname]
     
     --This dependency was missing so mark all the depents unloadable
     if(not RequiredMod) then
-      for name,mod in pairs(list) do
-        mod:OnDependencyMissing(modname)
-        LoadableMods[name] = nil
-      end
+      PropagateUnloadable(modname)
     else
       --if it has no dependencys it must be a root node
       if(not RequiredMod.Dependencys) then
@@ -411,16 +434,16 @@ function ModLoader:HandleModsDependencys(LoadableMods, Dependents)
   end
 
   local NodeList = {}
+  local OrderedActiveMods = self.OrderedActiveMods
   
   for modname,entry in pairs(LoadableMods) do
     
     --load all mods than have no dependencys and are not dependentts of other mods
     if not Dependents[modname] and not entry.Dependencys then
-      print("Loading mod: "..entry.Name)
+      RawPrint("Loading mod: "..entry.Name)
 
 		  if(entry:Load()) then
 		    OrderedActiveMods[#OrderedActiveMods+1] = entry
-		    ActiveMods[modname] = entry
 		  end
 		else
 		  local DependentList = Dependents[modname]
@@ -480,11 +503,10 @@ function ModLoader:HandleModsDependencys(LoadableMods, Dependents)
   local FailedToLoaded = {}
   
   for _,entry in ipairs(Sorted) do
-		print("Loading mod: "..entry.Name)
+		RawPrint("Loading mod: "..entry.Name)
 
 		if(entry:Load()) then
 		  OrderedActiveMods[#OrderedActiveMods+1] = entry 
-			ActiveMods[entry.InternalName] = entry
 		else
 		  FailedToLoaded[entry.InternalName] = true
 		end

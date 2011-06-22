@@ -22,6 +22,7 @@ LoadState = {
 	Disabled = 0,
 	ModinfoLoaded = 1,
 	FullyLoaded = 2,
+	LoadedAndDisabled = 3,
 }
 
 local EntryMetaTable = {
@@ -30,9 +31,6 @@ local EntryMetaTable = {
 
 local IsRootFileSource = NS2_IO and NS2_IO.IsRootFileSource
 
-local function PrintStackTrace(err) 
-	Shared.Message(debug.traceback(err, 1))
-end
 
 function CreateModEntry(Source, dirname, IsArchive, pathInSource)
 	
@@ -127,6 +125,8 @@ function ModEntry:LoadModinfo()
     self.OptionalDependencys = self:ConvertDependencysList(fields.OptionalDependencys)
   end
 
+  self.LoadState = LoadState.ModinfoLoaded
+
 	return self:ValidateModinfo()
 end
 
@@ -208,7 +208,7 @@ function ModEntry:ValidateModinfo()
 	for fieldName,fieldType in pairs(OptionalFieldList) do
 		if(fieldlist[fieldName]) then		
 			if(type(fieldlist[fieldName]) ~= fieldType) then
-				Print("Ignoring %s's modinfo field %s  because it is the wrong type(%s) it should be a %s", self.Name, fieldName, type(fieldlist[fieldName]), fieldType)
+				RawPrint("Ignoring %s's modinfo field %s  because it is the wrong type(%s) it should be a %s", self.Name, fieldName, type(fieldlist[fieldName]), fieldType)
 				
 				fieldlist[fieldName] = nil
 			end
@@ -266,12 +266,12 @@ function ModEntry:Load()
 					xpcall2(LoadTracker.SetFileOverride, Shared.Message, LoadTracker, replacing, JoinPaths(self.Path, replacer), self.FileSource)
 				end
 			else
-				Print("Skipping entry that is a not a string in ScriptOverrides table of %s modinfo", self.Name)
+				RawPrint("Skipping entry that is a not a string in ScriptOverrides table of %s modinfo", self.Name)
 			end
 		end
 	end
 
-  if(fields.MountSource) then
+  if(fields.MountSource and NS2_IO) then
     if(self.GameFileSystemPath) then
       NS2_IO.MountSource(self.FileSource:CreateChildSource(self.GameFileSystemPath))
     else
@@ -293,7 +293,7 @@ function ModEntry:Load()
 	  	    self:RunLuaFile(filepath)
 	  	  end
 	  	else
-	  		Print("Skipping entry that is a not a string in ScriptList table of %s modinfo", self.Name)
+	  		RawPrint("Skipping entry that is a not a string in ScriptList table of %s modinfo", self.Name)
 	  	end
 	  end
 	end
@@ -306,6 +306,10 @@ function ModEntry:Load()
 		  return self:MainLoadPhase()
 		end
 	end
+
+  if(self.LoadState > 0) then
+    self.LoadState = LoadState.FullyLoaded
+  end
 
 	return mainScriptResult
 end
@@ -413,14 +417,12 @@ function ModEntry:MainLoadPhase()
 			self.SavedVars = sv
 			self.SavedVars:Load()
 		else
-			Print("Error while setting up saved varibles for mod %s: %s", self.Name, sv)
+			RawPrint("Error while setting up saved varibles for mod %s: %s", self.Name, sv)
 		end
 	end
 	
 	self:CallModFunction("OnLoad")
-	
-	self.IsLoaded = true
-  
+	  
   return true
 end
 
@@ -443,12 +445,12 @@ end
 
 function ModEntry:PrintError(...)
   --TODO add recording of these errors
-  Print(...)
+  RawPrint(...)
 end
 
 function ModEntry:OnClientLuaFinished()
 
-	if(not self.IsLoaded) then
+	if(not self:IsActive()) then
 		return
 	end
 
@@ -458,7 +460,7 @@ end
 
 function ModEntry:OnServerLuaFinished()
 
-	if(not self.IsLoaded) then
+	if(not self:IsActive()) then
 		return
 	end
 
@@ -473,15 +475,33 @@ function ModEntry:CanDisable()
 	return (success and ret) or false
 end
 
+function ModEntry:HasStartupErrors()
+  return self.LoadState < 0
+end
+
+function ModEntry:IsLoaded()
+  return self.LoadState >= LoadState.FullyLoaded
+end
+
+function ModEntry:IsActive()
+  return self.LoadState == LoadState.FullyLoaded
+end
 
 function ModEntry:Enable()
 end
 
 function ModEntry:Disable()
-  
+
+  if(self.LoadState <= LoadState.ModinfoLoaded or self.LoadState == LoadState.LoadedAndDisabled) then
+    --just do nothing since we either had fatal errors or we've only loaded the modinfo
+    return
+  end
+
   if(not self:CanDisable()) then
     error(self.Name.." cannot be runtime disabled")
   end
-  
+
   self:CallModFunction("Disable")
+ 
+  self.LoadState = LoadState.LoadedAndDisabled
 end
