@@ -479,7 +479,6 @@ function ClassHooker:HookLibraryFunctionType(hookType, libName, functionName, Fu
 	return handle
 end
 
---TODO Libary hook handling
 function ClassHooker:HookFunctionType(hookType, functionName, FuncOrSelf, callbackFuncName)
 	
 	local HookData = CheckCreateHookTable(self.FunctionHooks, functionName, hookType)
@@ -694,13 +693,13 @@ function ClassHooker:Class_Hook(classname)
 					end
 end
 
-function ClassHooker:LinkClassToMap(classname, entityname)
+function ClassHooker:LinkClassToMap(classname, entityname, networkVars)
 
 	if(entityname) then
 		self.LinkedClasss[classname] = true
 	end
 	
-	self:OnClassFullyDefined(classname)
+	self:OnClassFullyDefined(classname, networkVars)
 end
 
 function ClassHooker:ScriptLoadFinished(scriptPath)
@@ -749,15 +748,15 @@ function ClassHooker:SetClassCreatedIn(class, luafile)
 	self.CreatedIn[class] = path
 end
 	
-function ClassHooker:OnClassFullyDefined(classname)
+function ClassHooker:OnClassFullyDefined(classname, networkVars)
 	local ClassDeclaredCb = self.ClassDeclaredCb[classname]
 	
 	if(ClassDeclaredCb) then
 		for _,hook in ipairs(ClassDeclaredCb) do
 			if(type(hook) == "table") then
-				hook[1](hook[2], classname)
+				hook[1](hook[2], classname, networkVars)
 			else
-				hook(classname)
+				hook(classname, networkVars)
 			end
 		end
 	end
