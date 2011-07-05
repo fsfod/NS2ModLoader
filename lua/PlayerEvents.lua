@@ -48,11 +48,17 @@ function PlayerEvents:HookClassChanged(firstArg, ...)
   end
 end
 
+function PlayerEvents:PrintDebug(...)
+  if(self.Debug) then
+    RawPrint(...)
+  end
+end
+
 function PlayerEvents:OnTeamChanged()
   local player = Client.GetLocalPlayer()
   
   if(not player) then
-    RawPrint("TeamChanged %s %s", "nil", (self.CurrentTeam or "nil"))
+     self:PrintDebug("TeamChanged %s %s", "nil", (self.CurrentTeam or "nil"))
     
     if(self.CurrentTeam) then
       self.Callbacks:Fire("TeamChanged", nil, self.CurrentTeam)
@@ -62,10 +68,10 @@ function PlayerEvents:OnTeamChanged()
   else
     local team = player and player:GetTeamNumber()
   
-    RawPrint("TeamChanged %s %s", tonumber(team), (self.CurrentTeam or "nil"))
+     self:PrintDebug("TeamChanged %s %s", tonumber(team), (self.CurrentTeam or "nil"))
 
     if(team == kTeamReadyRoom and self.CurrentTeam ~= kTeamReadyRoom) then
-      RawPrint("EnteredReadyRoom")
+      self:PrintDebug("EnteredReadyRoom")
       self.Callbacks:Fire("EnteredReadyRoom", self.CurrentTeam)
     end
     
@@ -96,7 +102,7 @@ function PlayerEvents:OnClassChanged()
     local team = player:GetTeamNumber()
  
     if(isSpectator and not self.IsSpectator and team ~= kTeamReadyRoom and team == self.CurrentTeam) then
-      RawPrint("PlayerDied")
+       self:PrintDebug("PlayerDied")
       self.Callbacks:Fire("PlayerDied")
     end
  

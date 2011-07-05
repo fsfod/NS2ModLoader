@@ -376,7 +376,7 @@ function ModEntry:InjectFunctions()
 	end
 
   ModTable.LoadScriptAfter = function(selfArg, scriptPath, afterScriptPath) 
-    replacer = (type(replacer) == "string" and replacer) or replacing
+    afterScriptPath = (type(afterScriptPath) == "string" and afterScriptPath) or scriptPath
 				
 		if(self.GameFileSystemPath) then
 	    LoadTracker:LoadScriptAfter(scriptPath, JoinPaths(self.GameFileSystemPath, afterScriptPath))

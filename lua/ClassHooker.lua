@@ -49,7 +49,7 @@ local HookNumToString = {
   [ReplaceHook] = "Replace",
 }
 
-
+PassHookHandle = 1
 
 if(not FakeNil) then
 	FakeNil = {}
@@ -479,11 +479,17 @@ function ClassHooker:HookLibraryFunctionType(hookType, libName, functionName, Fu
 	return handle
 end
 
-function ClassHooker:HookFunctionType(hookType, functionName, FuncOrSelf, callbackFuncName)
+function ClassHooker:HookFunctionType(hookType, functionName, FuncOrSelf, callbackFuncName, flags)
 	
 	local HookData = CheckCreateHookTable(self.FunctionHooks, functionName, hookType)
 		
 	local handle = CreateHookEntry(hookType, HookData, FuncOrSelf, callbackFuncName or functionName)
+	
+	if(flags) then
+	  if(bit.band(flags, PassHookHandle) ~= 0) then
+	    handle:SetPassHandle(true)
+	  end
+	end
 	
 	if(self.MainLuaLoadingFinished) then
 		if(self.FunctionHooks[functionName]) then
@@ -503,11 +509,17 @@ function ClassHooker:IsClassHookSet(classname, functionName)
 	return (hook and hook.Dispatcher ~= nil) or false
 end
 
-function ClassHooker:HookClassFunctionType(hookType, classname, functioName, FuncOrSelf, callbackFuncName)
+function ClassHooker:HookClassFunctionType(hookType, classname, functioName, FuncOrSelf, callbackFuncName, flags)
 
 	local HookData = self:CheckCreateClassHookTable(classname, functioName, hookType)
 
 	local handle = CreateHookEntry(hookType, HookData, FuncOrSelf, callbackFuncName or functionName)
+	
+	if(flags) then
+	  if(bit.band(flags, PassHookHandle) ~= 0) then
+	    handle:SetPassHandle(true)
+	  end
+	end
 	
 	if(self.MainLuaLoadingFinished) then
 		if self:IsClassHookSet(classname, functioName) then
@@ -791,7 +803,7 @@ local function Mixin_HookClassFunctionType(self, hooktype, classname, funcName, 
 
 	local handle
 
-	if(type(callbackFuncName) == "string") then
+	if(not self.ClassHooker_NoSelfCall and type(callbackFuncName) == "string") then
 		if(not self[callbackFuncName]) then
 			error(string.format("ClassHooker:HookClassFunctionType hook callback function \"%s\" does not exist", callbackFuncName))
 		end
@@ -799,6 +811,8 @@ local function Mixin_HookClassFunctionType(self, hooktype, classname, funcName, 
 		handle = ClassHooker:HookClassFunctionType(hooktype, classname, funcName, self, callbackFuncName)
 	else
 		handle = ClassHooker:HookClassFunctionType(hooktype, classname, funcName, callbackFuncName)
+		
+		handle[2] = self
 	end
 
 	table.insert(self.ClassHooker_Hooks, handle)
@@ -815,7 +829,7 @@ local function Mixin_HookFunctionType(self, hooktype, funcName, callbackFuncName
 
 	local handle
 	
-	if(type(callbackFuncName) == "string") then
+	if(not self.ClassHooker_NoSelfCall and type(callbackFuncName) == "string") then
 		if(not self[callbackFuncName]) then
 			error(string.format("ClassHooker:HookFunctionType hook callback function \"%s\" does not exist", callbackFuncName))
 		end
@@ -823,6 +837,7 @@ local function Mixin_HookFunctionType(self, hooktype, funcName, callbackFuncName
 		handle = ClassHooker:HookFunctionType(hooktype, funcName, self, callbackFuncName)
 	else
 		handle = ClassHooker:HookFunctionType(hooktype, funcName, callbackFuncName)
+		handle[2] = self
 	end
 
 	table.insert(self.ClassHooker_Hooks, handle)
@@ -847,6 +862,7 @@ local function Mixin_HookLibraryFunction(self, hooktype, libName, funcName, call
 		handle = ClassHooker:HookLibraryFunctionType(hooktype, libName, funcName, self, callbackFuncName)
 	else
 		handle = ClassHooker:HookLibraryFunctionType(hooktype, libName, funcName, callbackFuncName)
+		handle[2] = self
 	end
 
 	table.insert(self.ClassHooker_Hooks, handle)
@@ -899,7 +915,7 @@ local MixInList = {
 	end
 }
 
-function ClassHooker:Mixin(classTableOrName, IdString)
+function ClassHooker:Mixin(classTableOrName, IdString, noSelfCall)
 
 	if(not IdString) then
 		
@@ -922,6 +938,8 @@ function ClassHooker:Mixin(classTableOrName, IdString)
 	end
 
 	self.SelfTableToId[classTableOrName] = IdString
+	
+	classTableOrName.ClassHooker_NoSelfCall = noSelfCall
 	
 	classTableOrName.ClassHooker_Hooks = {}
 	

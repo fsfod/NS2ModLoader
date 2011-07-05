@@ -1,36 +1,38 @@
 
-LoadTracker = {
-	LoadStack = {},
-	LoadedScripts = {},
-	
-	LoadAfterScripts = {},
-	LoadedFileHooks = {},
-	OverridedFiles = {},
-}
+if(not LoadTracker) then
+  LoadTracker = {
+  	LoadStack = {},
+  	LoadedScripts = {},
+  	
+  	LoadAfterScripts = {},
+  	LoadedFileHooks = {},
+  	OverridedFiles = {},
+  }
 
+  LoadTracker.NormalizePath = NormalizePath
+  
+  local Script_Load = Script.Load
+  
+  Script.Load = function(scriptPath)
+  	//just let the real script.load bomb on bad paramters
+  	if(not scriptPath or type(scriptPath) ~= "string") then
+  		Script_Load(scriptPath)
+  	end
+  	
+  	local normPath = NormalizePath(scriptPath)
+  	local NewPath = LoadTracker:ScriptLoadStart(normPath, scriptPath)
+  	
+  	local ret
+  	
+  	if(NewPath) then
+  		ret = Script_Load(NewPath)
+  	end
+  	
+  	assert(ret ==  nil)
+  	
+  	LoadTracker:ScriptLoadFinished(normPath)
+  end
 
-LoadTracker.NormalizePath = NormalizePath
-
-local Script_Load = Script.Load
-
-Script.Load = function(scriptPath)
-	//just let the real script.load bomb on bad paramters
-	if(not scriptPath or type(scriptPath) ~= "string") then
-		Script_Load(scriptPath)
-	end
-	
-	local normPath = NormalizePath(scriptPath)
-	local NewPath = LoadTracker:ScriptLoadStart(normPath, scriptPath)
-	
-	local ret
-	
-	if(NewPath) then
-		ret = Script_Load(NewPath)
-	end
-	
-	assert(ret ==  nil)
-	
-	LoadTracker:ScriptLoadFinished(normPath)
 end
 
 function LoadTracker:ScriptLoadStart(normalizedsPath, unnormalizedsPath)
@@ -60,19 +62,27 @@ function LoadTracker:ScriptLoadStart(normalizedsPath, unnormalizedsPath)
 	return unnormalizedsPath
 end
 
-function LoadTracker:HookFileLoadFinished(scriptPath, selfTable, funcName)
+function LoadTracker:HookFileLoadFinished(scriptPath, selfOrFunc, funcName)
 	
 	local path = NormalizePath(scriptPath)
 	
 	if(self.LoadedScripts[tobeNorm]) then
 		error("cannot set FileLoadFinished hook for "..scriptPath.." because the file is already loaded")
 	end
-	
-	if(not self.LoadedFileHooks[path]) then
-		self.LoadedFileHooks[path] = {{selfTable[funcName] , selfTable}}
-	else
-		table.insert(self.LoadedFileHooks[path], {selfTable[funcName] , selfTable})
+
+	local tbl = self.LoadedFileHooks[path]
+
+	if(not tbl) then
+		tbl = {}
+		self.LoadedFileHooks[path] = tbl
 	end
+
+	if(funcName) then
+    table.insert(tbl, function() selfOrFunc[funcName](selfOrFunc) end)
+  else
+    table.insert(tbl, selfOrFunc)
+  end
+
 end
 
 function LoadTracker:LoadScriptAfter(scriptPath, afterScriptPath, afterScriptSource)
@@ -127,7 +137,7 @@ function LoadTracker:ScriptLoadFinished(normalizedsPath)
 	if(self.LoadedScripts[normalizedsPath] == #self.LoadStack) then
 		if(self.LoadedFileHooks[normalizedsPath]) then
 			for _,hook in ipairs(self.LoadedFileHooks[normalizedsPath]) do
-				hook[1](hook[2])
+				hook()
 			end
 		end
 
