@@ -385,9 +385,25 @@ function ModEntry:InjectFunctions()
 		end
 	end
 
-  if(NS2_IO and not self.IsArchive) then	
-	  ModTable.LoadLuaDllModule = function(selfArg, path) 
-	  	return NS2_IO.LoadLuaDllModule(self.FileSource, JoinPaths(self.Path, path))
+  if(NS2_IO) then	
+    if(not self.IsArchive) then
+	    ModTable.LoadLuaDllModule = function(selfArg, path) 
+	    	return NS2_IO.LoadLuaDllModule(self.FileSource, JoinPaths(self.Path, path))
+	    end
+	  end
+	else
+	  if(ModPath) then
+	    ModTable.LoadLuaDllModule = function(selfArg, path) 
+	      local fullPath = JoinPaths(JoinPaths(ModPath, self.GameFileSystemPath), path)
+	      
+	      local funcName = GetFileNameWithoutExt(path)
+	      
+	      if(funcName) then
+	        funcName = "luaopen_"..funcName
+	      end
+	      
+	      return package.loadlib(fullPath, funcName)
+	    end
 	  end
 	end
 end

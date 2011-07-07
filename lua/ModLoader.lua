@@ -37,9 +37,15 @@ function ModLoader:Init()
 	self:SetHooks()
 end
 
-function ModLoader:Init_EmbededMode()
+function ModLoader:Init_EmbededMode(registeredMods)
   self:SetupConsoleCommands()
   self:SetHooks()
+  
+  for _,mod in ipairs(registeredMods) do
+    self:LoadModFromDir(unpack(mod))
+  end
+  
+  
   self:ScannForMods()
 end
 
@@ -387,7 +393,7 @@ function ModLoader:LoadMods()
       RawPrint("Loading mod: "..entry.Name)
 
 		  if(entry:Load()) then
-		    ordered[#orderd+1] = entry
+		    ordered[#ordered+1] = entry
 		  end
     end
   end

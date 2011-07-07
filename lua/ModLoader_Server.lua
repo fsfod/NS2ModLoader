@@ -1,7 +1,10 @@
 Script.Load("NS2_IO.lua")
 
-if(not NS2_IO) then
-	Shared.Message("Stopping because NS2_IO is not loaded")
+local success, msg = NS2IOLoader:Load()
+
+if(not success) then
+  //error("failed to load NS2_IO.dll module because of error:\n "..msg)
+	Shared.Message("Stopping because NS2_IO encounted error: "..(msg or "unknown error"))
  return
 end
 

@@ -40,6 +40,23 @@ function JoinPaths(path1, path2)
 	end
 end
 
+function GetFileNameWithoutExt(path)
+
+	local index = string.find(path, "[%/%\\]", -#path)
+  local ext = string.find(path, "%.", -#path)
+
+
+	if(index and ext) then
+		if(index == #path or index+1 == #path or ext > index) then
+		  return nil
+		end
+
+		return string.sub(path, index+1, ext-1)
+	end
+
+	return (ext and string.sub(path, 1, ext-1)) or nil
+end
+
 function StripExtension(filename)
 
 	local index = string.find(filename, "%.", -#filename)
@@ -76,4 +93,20 @@ function RunScriptFromSource(source, path)
 	local success = xpcall(ChunkOrError, WriteStackTrace)
 
 	return success
+end
+
+function FileExists(file)
+  local matchingFiles = {}
+  
+  Shared.GetMatchingFileNames(file, false, matchingFiles)
+  
+  local lfile = file:lower()
+  
+  for _,path in ipairs(matchingFiles) do
+    if(path:lower() == lfile) then
+      return true
+    end
+  end
+  
+  return false
 end

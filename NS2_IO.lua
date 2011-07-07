@@ -62,7 +62,7 @@ function NS2IOLoader:Load()
   local BasePath, result, errorMsg
 
   if(not self:FileExists(self.MarkerFile)) then
-    return false, string.format("Marker file %s does not seem to exist in the mods directory does not seem to of been fully extracted/copyed correctly", self.MarkerFile)
+    return false, string.format("Marker file %s does not seem to exist in the mods directory the mod does not seem to of been fully extracted/copyed correctly", self.MarkerFile)
   end
 
   if(self:FileExists("ModPath.lua")) then
