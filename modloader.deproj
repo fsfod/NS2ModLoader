@@ -7,9 +7,6 @@
     <filename>lua\ModLoader.lua</filename>
   </file>
   <file>
-    <filename>lua\Client.lua</filename>
-  </file>
-  <file>
     <filename>lua\ClassHooker.lua</filename>
   </file>
   <file>
@@ -25,27 +22,66 @@
     <filename>lua\ModLoader_Server.lua</filename>
   </file>
   <file>
-    <filename>lua\PathUtil.lua</filename>
-  </file>
-  <file>
     <filename>lua\ModLoader_Shared.lua</filename>
-  </file>
-  <file>
-    <filename>Mods\Jetpack\JetpackMod.lua</filename>
   </file>
   <file>
     <filename>Mods\Keybinds\lua\Hooks.lua</filename>
   </file>
   <file>
-    <filename>Mods\Keybinds\lua\KeybindImplementations.lua</filename>
+    <filename>Mods\BaseUIControls\ListView.lua</filename>
   </file>
   <file>
-    <filename>Mods\Keybinds\lua\KeyBindInfo.lua</filename>
+    <filename>Mods\BaseUIControls\ScrollBar.lua</filename>
+  </file>
+  <file>
+    <filename>Mods\BaseUIControls\BaseControl.lua</filename>
+  </file>
+  <file>
+    <filename>Mods\GUIMainMenu\GUIMainMenu.lua</filename>
+  </file>
+  <file>
+    <filename>Mods\GUIMainMenu\MainPage.lua</filename>
+  </file>
+  <file>
+    <filename>Mods\GUIMainMenu\ServerBrowserPage.lua</filename>
+  </file>
+  <file>
+    <filename>Mods\GUIMainMenu\KeybindPage.lua</filename>
   </file>
   <file>
     <filename>Mods\Keybinds\lua\KeybindMapper.lua</filename>
   </file>
   <file>
-    <filename>Mods\Keybinds\lua\KeybindSystemConsoleCommands.lua</filename>
+    <filename>Mods\BaseUIControls\TextBox.lua</filename>
+  </file>
+  <file>
+    <filename>Mods\BaseUIControls\GUIManager.lua</filename>
+  </file>
+  <file>
+    <filename>Mods\GUIMainMenu\CreateServerPage.lua</filename>
+  </file>
+  <file>
+    <filename>Mods\BaseUIControls\ComboBox.lua</filename>
+  </file>
+  <file>
+    <filename>Mods\GUIMainMenu\ModsPage.lua</filename>
+  </file>
+  <file>
+    <filename>Mods\ScrollableChat\GUIChat.lua</filename>
+  </file>
+  <file>
+    <filename>Mods\GUIMainMenu\MapList.lua</filename>
+  </file>
+  <file>
+    <filename>Mods\LerkLift\LerkLift.lua</filename>
+  </file>
+  <file>
+    <filename>Mods\BaseUIControls\MouseStateTracker.lua</filename>
+  </file>
+  <file>
+    <filename>Mods\BaseUIControls\UpDownControl.lua</filename>
+  </file>
+  <file>
+    <filename>NS2_IO.lua</filename>
   </file>
 </project>

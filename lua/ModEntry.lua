@@ -68,7 +68,7 @@ local ChangeCaseMT = {
   end,
 }
 
-function ModEntry:ConvertDependencysList(list)
+function ModEntry:ConvertDependenciesList(list)
 
   local deps = {}
 
@@ -84,9 +84,19 @@ end
 function ModEntry:LoadModinfo()
 
 	local Source = self.FileSource
-	
-	local success, chunkOrError = pcall(Source.LoadLuaFile, Source, self.Path.."modinfo.lua")
-	//local success, chunkOrError = pcall(loadfile, string.format("modloader/mods/%s/modinfo.lua", self.Name))
+  local success, chunkOrError
+
+
+	if(Source) then
+    success, chunkOrError = pcall(Source.LoadLuaFile, Source, self.Path.."modinfo.lua")
+  elseif(__ModPath) then
+    success, chunkOrError = loadfile(string.format("%s/modinfo.lua", JoinPaths(__ModPath, self.GameFileSystemPath)))
+    
+    --loadfile returns the function first and the error second. nil function = error set
+    if(success) then
+      chunkOrError = success
+    end
+  end
 
 	if(not success) then
 	  self.LoadState = LoadState.ModinfoLoadError
@@ -113,16 +123,20 @@ function ModEntry:LoadModinfo()
 		return false
 	end
 
+  return self:ProcessModInfo(fields)
+end
+
+function ModEntry:ProcessModInfo(fields)
 	self.Modinfo = fields
 
 	self.Valid = true
 
-	if(fields.Dependencys) then
-    self.Dependencys = self:ConvertDependencysList(fields.Dependencys)
+	if(fields.Dependencies) then
+    self.Dependencies = self:ConvertDependenciesList(fields.Dependencies)
   end
 
-	if(fields.OptionalDependencys) then
-    self.OptionalDependencys = self:ConvertDependencysList(fields.OptionalDependencys)
+	if(fields.OptionalDependencies) then
+    self.OptionalDependencies = self:ConvertDependenciesList(fields.OptionalDependencies)
   end
 
   self.LoadState = LoadState.ModinfoLoaded
@@ -171,6 +185,7 @@ local RequiredFieldList ={
 
 local OptionalFieldList = {
 	SavedVaribles = "table",
+	Dependencies = "table",
 	MainScript = "string",
 	ScriptList = "table",
 	ScriptOverrides = "table",
@@ -392,9 +407,9 @@ function ModEntry:InjectFunctions()
 	    end
 	  end
 	else
-	  if(ModPath) then
+	  if(__ModPath) then
 	    ModTable.LoadLuaDllModule = function(selfArg, path) 
-	      local fullPath = JoinPaths(JoinPaths(ModPath, self.GameFileSystemPath), path)
+	      local fullPath = JoinPaths(JoinPaths(__ModPath, self.GameFileSystemPath), path)
 	      
 	      local funcName = GetFileNameWithoutExt(path)
 	      

@@ -30,7 +30,7 @@ IF NOT EXIST "%InstallPath%" (
 ) 
 
 IF NOT EXIST "%~dp0\ModPath.lua" (
-  @echo ModPath = [[%~dp0]] > "%~dp0\ModPath.lua"
+  @echo __ModPath = [[%~dp0]] > "%~dp0\ModPath.lua"
 ) 
 
 start /d"%InstallPath%" .\ns2.exe -game "%~dp0"

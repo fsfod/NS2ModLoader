@@ -68,8 +68,8 @@ function NS2IOLoader:Load()
   if(self:FileExists("ModPath.lua")) then
     Script.Load("ModPath.lua")
     
-    if(ModPath and type(ModPath) == "string" and ModPath ~= "") then
-      BasePath = ModPath
+    if(__ModPath and type(__ModPath) == "string" and __ModPath ~= "") then
+      BasePath = __ModPath
     end
   end
 

@@ -30,7 +30,7 @@ IF NOT EXIST "%InstallPath%" (
 )
 
 IF NOT EXIST "%~dp0\ModPath.lua" (
-  @echo ModPath = [[%~dp0]] > "%~dp0\ModPath.lua"
+  @echo __ModPath = [[%~dp0]] > "%~dp0\ModPath.lua"
 ) 
 
 start /d"%InstallPath%" .\server.exe -game "%~dp0" -map ns2_summit -console -lan true

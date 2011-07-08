@@ -42,11 +42,12 @@ function ModLoader:Init_EmbededMode(registeredMods)
   self:SetHooks()
   
   for _,mod in ipairs(registeredMods) do
-    self:LoadModFromDir(unpack(mod))
+    self:AddModFromDir(unpack(mod))
   end
   
   
   self:ScannForMods()
+  self:LoadMods()
 end
 
 function ModLoader:SetupConsoleCommands()
@@ -372,8 +373,8 @@ function ModLoader:LoadMods()
 		if entry:LoadModinfo() and not self.DisabledMods[modname] and entry:CanLoadInVm(VMName) then
 		  LoadableMods[modname] = entry
 
-		  if(entry.Dependencys) then
-		    for name,_ in pairs(entry.Dependencys) do
+		  if(entry.Dependencies) then
+		    for name,_ in pairs(entry.Dependencies) do
 		      if(not Dependents[name]) then
 		        Dependents[name] = {}
 		      end
@@ -385,7 +386,7 @@ function ModLoader:LoadMods()
 	end
 
   if(next(Dependents)) then
-    self:HandleModsDependencys(LoadableMods, Dependents)
+    self:HandleModsDependencies(LoadableMods, Dependents)
   else
     local ordered = self.OrderedActiveMods
     
@@ -400,9 +401,9 @@ function ModLoader:LoadMods()
 
 end
 
-function ModLoader:HandleModsDependencys(LoadableMods, Dependents)
+function ModLoader:HandleModsDependencies(LoadableMods, Dependents)
   
-  local MissingDependencys = {}
+  local MissingDependencies = {}
   local RootList = {}
 	
 	local PropagateUnloadable
@@ -432,8 +433,8 @@ function ModLoader:HandleModsDependencys(LoadableMods, Dependents)
     if(not RequiredMod) then
       PropagateUnloadable(modname)
     else
-      --if it has no dependencys it must be a root node
-      if(not RequiredMod.Dependencys) then
+      --if it has no Dependencies it must be a root node
+      if(not RequiredMod.Dependencies) then
         RootList[#RootList+1] = RequiredMod
       end
     end
@@ -444,8 +445,8 @@ function ModLoader:HandleModsDependencys(LoadableMods, Dependents)
   
   for modname,entry in pairs(LoadableMods) do
     
-    --load all mods than have no dependencys and are not dependentts of other mods
-    if not Dependents[modname] and not entry.Dependencys then
+    --load all mods than have no Dependencies and are not dependentts of other mods
+    if not Dependents[modname] and not entry.Dependencies then
       RawPrint("Loading mod: "..entry.Name)
 
 		  if(entry:Load()) then
@@ -455,7 +456,7 @@ function ModLoader:HandleModsDependencys(LoadableMods, Dependents)
 		  local DependentList = Dependents[modname]
 
 		  if(DependentList) then
-		    --clear out any dependent mods that aren't loadable anymore because they are missing a dependencys
+		    --clear out any dependent mods that aren't loadable anymore because they are missing a Dependencies
 		    for name,mod in pairs(DependentList) do
 		      if(not LoadableMods[name]) then
 		        DependentList[name] = nil
@@ -487,7 +488,7 @@ function ModLoader:HandleModsDependencys(LoadableMods, Dependents)
 
     if(node.Dependents) then
       for name,childnode in pairs(node.Dependents) do
-        local ParentList = childnode.Dependencys
+        local ParentList = childnode.Dependencies
         
         --remove the parent link to us
         if(ParentList) then

@@ -30,11 +30,29 @@ function ModLoader:ScannForMods()
 	  local dirName = string.match(path, "Mods/([^%/]+)/modinfo.lua")
 	  
 		if(dirName) then
-			self:LoadModFromDir("Mods/"..dirName, dirName, true)
+			self:AddModFromDir("Mods/"..dirName, dirName, true)
 		else
 			Shared.Message("ModLoader.ScannForMods: not a valid mod "..path)
 		end
 	end
+end
+
+function ModLoader:AddModFromDir(dirPath, name, optional, defaultDisabled)
+  local mod = CreateModEntry(dirPath, name)
+  
+  local name = mod.InternalName
+    
+  if(optional) then
+    if(defaultDisabled == nil) then
+      defaultDisabled = self.DisabledMods[name] == true
+    end
+    
+    self.DisabledMods[name] = Client.GetOptionBoolean("ModLoader/Disabled/"..name, defaultDisabled)
+  else
+    mod.Required = true
+  end
+  
+  self.Mods[name] = mod
 end
 
 function ModLoader:LoadModFromDir(dirPath, name, optional, defaultDisabled)
@@ -83,6 +101,8 @@ local OptionalFieldList = {
 	CanLateLoad = "boolean",
 }
 
+if(not __ModPath) then
+
 function ModEntry:LoadModinfo()
 
   //wtb a Script.Load that takes an enviroment to load the script
@@ -106,21 +126,17 @@ function ModEntry:LoadModinfo()
     modinfo[name] = _G[name]
   end
   
-  self.Modinfo = modinfo
-  
   self.LoadState = LoadState.ModinfoLoaded
-  
-  //return self:ValidateModinfo() 
-  return true
+
+  return self:ProcessModInfo(modinfo)
+end
+
 end
 
 function ModEntry:LoadMainScript()
 	local fields = self.Modinfo
 
-  local MainScript = self.Modinfo.MainScript
-  local MainScriptFile = JoinPaths(self.Path, MainScript)
-
-  self:RunLuaFile(MainScript)
+  self:RunLuaFile(self.Modinfo.MainScript)
 
 	return self:MainLoadPhase()
 end
@@ -142,8 +158,6 @@ function ModEntry:MainLoadPhase()
 	self:InjectFunctions()
 	
 	self:CallModFunction("OnLoad")
-	
-	self.IsLoaded = true
   
   return true
 end
