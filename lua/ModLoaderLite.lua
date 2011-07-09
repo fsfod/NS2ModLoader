@@ -47,7 +47,8 @@ function ModLoader:AddModFromDir(dirPath, name, optional, defaultDisabled)
       defaultDisabled = self.DisabledMods[name] == true
     end
     
-    self.DisabledMods[name] = Client.GetOptionBoolean("ModLoader/Disabled/"..name, defaultDisabled)
+    //sigh GetOption stuff really needs tobe moved to shared.  just treat server mods as always enabled 
+    self.DisabledMods[name] = (Client or false)  and Client.GetOptionBoolean("ModLoader/Disabled/"..name, defaultDisabled)
   else
     mod.Required = true
   end
@@ -97,13 +98,17 @@ local OptionalFieldList = {
 	MainScript = "string",
 	ScriptList = "table",
 	ScriptOverrides = "table",
-	
+	Dependencies = true,
 	CanLateLoad = "boolean",
 }
 
 if(not __ModPath) then
 
 function ModEntry:LoadModinfo()
+
+  if(self.Modinfo) then
+    return true
+  end
 
   //wtb a Script.Load that takes an enviroment to load the script
   for name,_ in pairs(OptionalFieldList) do
@@ -116,7 +121,7 @@ function ModEntry:LoadModinfo()
 
   self:RunLuaFile("modinfo.lua")
 
-  local modinfo = {}
+  local modinfo = setmetatable({}, self.ChangeCaseMT)
 
   for name,_ in pairs(OptionalFieldList) do
     modinfo[name] = _G[name]

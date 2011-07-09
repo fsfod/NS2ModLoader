@@ -38,11 +38,15 @@ function ModLoader:Init()
 end
 
 function ModLoader:Init_EmbededMode(registeredMods)
+  self.Embeded = true
+  
   self:SetupConsoleCommands()
   self:SetHooks()
-  
-  for _,mod in ipairs(registeredMods) do
-    self:AddModFromDir(unpack(mod))
+
+  if(registeredMods) then
+    for _,mod in ipairs(registeredMods) do
+      self:AddModFromDir(unpack(mod))
+    end
   end
   
   
@@ -79,7 +83,7 @@ end
 
 function ModLoader:SetHooks()
 
-  if(Server) then
+  if(Server and not self.Embeded) then
     self:PostHookClassFunction("Gamerules", "OnClientConnect")
   end
 end

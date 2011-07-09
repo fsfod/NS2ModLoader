@@ -58,15 +58,33 @@ function CreateModEntry(Source, dirname, IsArchive, pathInSource)
 	return setmetatable(ModData, EntryMetaTable)
 end
 
+local lowerCache = setmetatable({}, {__mode = "k"})
+
 local ChangeCaseMT = {
-  __newindex = function(tbl, key, value) 
-    rawset(tbl, key:lower(), value) 
+  __newindex = function(tbl, key, value)   
+    local lkey = lowerCache[key]
+    
+    if(not lkey) then
+      lkey = key:lower()
+      lowerCache[key] = lkey
+    end
+    
+    rawset(tbl, lkey, value) 
   end,
-  
+ 
   __index = function(tbl, key) 
-    return rawget(tbl, key:lower()) 
+   local lkey = lowerCache[key]
+    
+    if(not lkey) then
+      lkey = key:lower()
+      lowerCache[key] = lkey
+    end
+    
+    return rawget(tbl, lkey) 
   end,
 }
+
+ModEntry.ChangeCaseMT = ChangeCaseMT
 
 function ModEntry:ConvertDependenciesList(list)
 
@@ -82,6 +100,10 @@ function ModEntry:ConvertDependenciesList(list)
 end
 
 function ModEntry:LoadModinfo()
+
+  if(self.Modinfo) then
+    return true
+  end
 
 	local Source = self.FileSource
   local success, chunkOrError
