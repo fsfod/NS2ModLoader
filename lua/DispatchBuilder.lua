@@ -162,7 +162,8 @@ local function RawArgsToNormalHooks(hookData, ...)
 		end
 	end
 
-	return ...
+  //have to call this here to work around the lua vm loading Orignal too early when this was called in the multihook dispatcher functions. LuaJIT seems to load it late
+	return hookData.Orignal(...)
 end
 
 --TODO add exception handling 
@@ -172,10 +173,9 @@ function DispatchBuilder:CreateMultiHookClassDispatcher(hookData)
 	  local retvalue
     
 	  if(hookData.Raw) then
-	  	retvalue = hookData.Orignal(RawArgsToNormalHooks(hookData, select(1, ...), RawClassDispatcherI[#hookData.Raw](hookData.Raw, ...)))
+	  	retvalue = RawArgsToNormalHooks(hookData, select(1, ...), RawClassDispatcherI[#hookData.Raw](hookData.Raw, ...))
 	  else
-	  	RawArgsToNormalHooks(hookData,...)
-	  	retvalue = hookData.Orignal(...)
+	  	retvalue = RawArgsToNormalHooks(hookData,...)
 	  end
     
 	  if(hookData.Post) then
@@ -203,12 +203,11 @@ function DispatchBuilder:CreateMultiHookDispatcher(hookData)
 
   return function(...)
 	  local retvalue
-    
+
 	  if(hookData.Raw) then
-	  	retvalue = hookData.Orignal(RawArgsToNormalHooks(hookData, RawDispatcherI[#hookData.Raw](hookData.Raw, ...)))
+	  	retvalue = RawArgsToNormalHooks(hookData, RawDispatcherI[#hookData.Raw](hookData.Raw, ...))
 	  else
-	  	RawArgsToNormalHooks(hookData, ...)
-	  	retvalue = hookData.Orignal(...)
+	  	retvalue = RawArgsToNormalHooks(hookData, ...)
 	  end
     
 	  if(hookData.Post) then
