@@ -136,14 +136,14 @@ function ModEntry:LoadModinfo()
   return self:ProcessModInfo(modinfo)
 end
 
-end
-
 function ModEntry:LoadMainScript()
 	local fields = self.Modinfo
 
   self:RunLuaFile(self.Modinfo.MainScript)
 
 	return self:MainLoadPhase()
+end
+
 end
 
 function ModEntry:MainLoadPhase()

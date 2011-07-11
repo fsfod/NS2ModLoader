@@ -31,6 +31,8 @@ function ModLoader:Init()
 	self.SV = SavedVariables("ModLoader", {"DisabledMods"}, self)
 	self.SV:Load()
 
+  self:SetupConsoleCommands()
+
 	self:ScannForMods()
 	self:LoadMods()
 	
@@ -165,11 +167,28 @@ function ModLoader:GetListOfActiveMods()
   
   local list = {}
 
-  for name,mod in pairs(self.ActiveMods) do
+  for name,mod in pairs(self.OrderedActiveMods) do
     list[#list+1] = name
   end
 
   return list
+end
+
+function ModLoader:IsModEnabled(name)
+  return not self.DisabledMods[name:lower()]
+end
+
+function ModLoader:IsModActive(name)
+  
+  name = name:lower()
+  
+  for modName,mod in pairs(self.OrderedActiveMods) do
+    if(modName == name) then
+      return true
+    end
+  end
+  
+  return false
 end
 
 function ModLoader:GetModInfo(name)
@@ -202,14 +221,12 @@ end
 function ModLoader:ListMods()
   
 	for name,mod in pairs(self.Mods) do
-		if(self.DisabledMods[name]) then
-			RawPrint("%s : Disabled", name)
+		if(mod:HasStartupErrors()) then
+	    RawPrint("%s : Enabled but encountered fatal error while loading", name)
+		elseif(self.DisabledMods[name]) then
+			RawPrint("%s : Disabled%s", name, (mod:IsLoaded() and " but still loaded this session") or "")
 		else
-			if(mod:IsActive()) then
-				RawPrint("%s : Enabled(Active)", name)
-			elseif(mod:HasStartupErrors()) then
-				RawPrint("%s : Enabled but encountered fatal error while loading", name)
-			end
+			RawPrint("%s : Enabled", name)
 		end
 	end
 end

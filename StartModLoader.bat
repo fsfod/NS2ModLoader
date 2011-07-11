@@ -7,7 +7,7 @@ FOR /F "tokens=2,*" %%i IN ('reg query "HKLM\SOFTWARE\Valve\Steam" /v "InstallPa
 IF NOT DEFINED SteamDirectory (
  @echo trying 64 bit reg path
 
- FOR /F "tokens=2,*" %%i IN ('reg query "HKLM\SOFTWARE\Wow6432Node\Valve" /v "InstallPath" 2^>nul ^| Find /i "InstallPath"')   DO set SteamDirectory=%%j
+ FOR /F "tokens=2,*" %%i IN ('reg query "HKLM\SOFTWARE\Wow6432Node\Valve\Steam" /v "InstallPath" 2^>nul ^| Find /i "InstallPath"')   DO set SteamDirectory=%%j
 )
 
 @echo Steam directory is: %SteamDirectory%

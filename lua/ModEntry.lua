@@ -17,7 +17,10 @@ LoadState = {
 	ModTableNameInUse   = -6,
 	DependencyMissing   = -7,
 	DependencyHasError  = -8,
-	ModTableMissing     = -9,
+	MainScriptMissing   = -9,
+	MainScriptLoadError = -10,
+	MainScriptRunError  = -11,
+	ModTableMissing     = -12,
 
 	Disabled = 0,
 	ModinfoLoaded = 1,
@@ -338,9 +341,9 @@ function ModEntry:Load()
   //if there was no ScriptList or the MainScript wasn't found in ScriptList we the run the MainScript/main loading phase now
 	if(mainScriptResult == nil) then
 		if(mainScript) then
-		  return self:LoadMainScript()
+		  mainScriptResult = self:LoadMainScript()
 		else
-		  return self:MainLoadPhase()
+		  mainScriptResult =  self:MainLoadPhase()
 		end
 	end
 
@@ -362,20 +365,34 @@ function ModEntry:RunLuaFile(path)
 end
 
 function ModEntry:LoadMainScript()
-	local fields = self.Modinfo
-
   local MainScript = self.Modinfo.MainScript
-  local MainScriptFile = JoinPaths(self.Path, MainScript)
+  local ChunkOrError
 
-  if(not self.FileSource:FileExists(MainScriptFile)) then
-    self:PrintError("Error %s's mod entry point file does not exist", self.Name)
-   return false
+  if(self.FileSource) then
+    local MainScriptFile = JoinPaths(self.Path, MainScript)
+
+    if(not self.FileSource:FileExists(MainScriptFile)) then
+      self:PrintError("Error %s's MainScript file does not exist", self.Name)
+      self.LoadState = LoadState.MainScriptMissing
+     return false
+    end
+    
+    ChunkOrError = self.FileSource:LoadLuaFile(MainScriptFile)
+  elseif(__ModPath) then
+    local errorMsg
+    ChunkOrError, errorMsg = loadfile(__ModPath..JoinPaths(self.GameFileSystemPath, MainScript))
+    
+    --loadfile returns the function first and the error second. nil function = error set
+    if(not ChunkOrError) then
+      chunkOrError = errorMsg
+    end
+  else
+    assert(false, "no way to load MainScript")
   end
 
-	local ChunkOrError = self.FileSource:LoadLuaFile(MainScriptFile)
-
 	if(type(ChunkOrError) == "string") then
-		self:PrintError("Error while parsing the main script of mod %s:%s", self.Name, ChunkOrError)
+		self:PrintError("Error while loading the main script of mod %s:%s", self.Name, ChunkOrError)
+		self.LoadState = LoadState.MainScriptLoadError
 	 return false
 	end
 
@@ -384,6 +401,7 @@ function ModEntry:LoadMainScript()
 
 	if(not success) then
 		self:PrintError("Error while running the main script of mod %s :%s", self.Name, StackTrace)
+		self.LoadState = LoadState.MainScriptRunError
 	 return false
 	end
 	

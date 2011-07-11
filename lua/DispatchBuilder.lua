@@ -27,42 +27,46 @@ end
 
 function DispatchBuilder:CreateSingleClassRaw(hookData)
 
-  local hook = hookData.Raw[1]
-
-  return function(self, ...)
-	  local retvalue = hookData.Orignal(self, hook(self, ...))
-
-	  	if(hookData.ReturnValue) then
+  local dispatcher = function(self, ...) 
+    local retvalue = hookData.Orignal(self, ...) 
+    
+    if(hookData.ReturnValue) then
 	  		retvalue = hookData.ReturnValue
 	  		hookData.ReturnValue = nil
 	  		
 	  		if(retvalue == FakeNil) then
 	  			retvalue = nil
 	  		end
-	  	end
+	  end
+  end
 
-	  return retvalue
+  local hook = hookData.Raw[1]
+
+  return function(self, ...)
+	  return dispatcher(self, hook(self, ...))
   end
 end
 
 function DispatchBuilder:CreateSingleRaw(hookData)
   
-  local hook = hookData.Raw[1]
-  
-  return function(...)
-	  local retvalue = hookData.Orignal(hook(...))
+  local dispatcher = function(...) 
+    local retvalue = hookData.Orignal(...) 
     
-	  	if(hookData.ReturnValue) then
+    if(hookData.ReturnValue) then
 	  		retvalue = hookData.ReturnValue
 	  		hookData.ReturnValue = nil
 	  		
 	  		if(retvalue == FakeNil) then
 	  			retvalue = nil
 	  		end
-	  	end
-    
-	  return retvalue
-	end
+	  end
+  end
+
+  local hook = hookData.Raw[1]
+
+  return function(...)
+	  return dispatcher(hook(...))
+  end
 end
 
 function DispatchBuilder:CreateSinglePost(hookData)
