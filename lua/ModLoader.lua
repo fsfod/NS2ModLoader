@@ -409,17 +409,31 @@ function ModLoader:LoadMods()
   if(next(Dependents)) then
     self:HandleModsDependencies(LoadableMods, Dependents)
   else
-    local ordered = self.OrderedActiveMods
+    local sorted = {}
     
     for modname,entry in pairs(LoadableMods) do
-      RawPrint("Loading mod: "..entry.Name)
-
-		  if(entry:Load()) then
-		    ordered[#ordered+1] = entry
-		  end
+      sorted[#sorted+1] = modname
     end
-  end
 
+    self:SortAndLoadModList(sorted)
+  end
+end
+
+function ModLoader:SortAndLoadModList(list)
+ 
+  table.sort(list)
+
+  local ordered = self.OrderedActiveMods
+
+  for _,modname in pairs(list) do
+    local entry = self.Mods[modname]
+    
+    RawPrint("Loading mod: "..entry.Name)
+    
+	  if(entry:Load()) then
+	    ordered[#ordered+1] = entry
+	  end
+  end
 end
 
 function ModLoader:HandleModsDependencies(LoadableMods, Dependents)
@@ -464,15 +478,13 @@ function ModLoader:HandleModsDependencies(LoadableMods, Dependents)
   local NodeList = {}
   local OrderedActiveMods = self.OrderedActiveMods
   
+  local loadList = {}
+  
   for modname,entry in pairs(LoadableMods) do
-    
+
     --load all mods than have no Dependencies and are not dependentts of other mods
     if not Dependents[modname] and not entry.Dependencies then
-      RawPrint("Loading mod: "..entry.Name)
-
-		  if(entry:Load()) then
-		    OrderedActiveMods[#OrderedActiveMods+1] = entry
-		  end
+      loadList[#loadList+1] = modname
 		else
 		  local DependentList = Dependents[modname]
 
@@ -492,6 +504,8 @@ function ModLoader:HandleModsDependencies(LoadableMods, Dependents)
 		  NodeList[modname] = entry
 		end
 	end
+
+  self:SortAndLoadModList(loadList)
 
   local Sorted = {}
   
