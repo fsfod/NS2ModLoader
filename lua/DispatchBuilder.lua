@@ -38,6 +38,8 @@ function DispatchBuilder:CreateSingleClassRaw(hookData)
 	  			retvalue = nil
 	  		end
 	  end
+	  
+	  return retvalue
   end
 
   local hook = hookData.Raw[1]
@@ -60,6 +62,8 @@ function DispatchBuilder:CreateSingleRaw(hookData)
 	  			retvalue = nil
 	  		end
 	  end
+
+	  return retvalue
   end
 
   local hook = hookData.Raw[1]
