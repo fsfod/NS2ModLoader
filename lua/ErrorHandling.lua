@@ -55,5 +55,20 @@ function PrintStackTrace(err)
 end
 
 function SafeCall(func, ...)
-  return xpcall2(func, PrintStackTrace, ...)
+  return Dispatchers[select('#', ...)](func, PrintStackTrace, ...)
+end
+
+function SafeCallOptional(self, funcName, ...)
+  
+  local func = self[funcName]
+  
+  if(not func) then
+    return nil, nil
+  end
+  
+  return Dispatchers[select('#', ...)+1](func, PrintStackTrace, self, ...) 
+end
+
+function SafeCallResultsOnly(func, ...)
+  return select(2, xpcall2(func, PrintStackTrace, ...))
 end

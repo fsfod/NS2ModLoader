@@ -50,6 +50,7 @@ local HookNumToString = {
 }
 
 PassHookHandle = 1
+InstantHookFlag = 2
 
 if(not FakeNil) then
 	FakeNil = {}
@@ -485,14 +486,20 @@ function ClassHooker:HookFunctionType(hookType, functionName, FuncOrSelf, callba
 		
 	local handle = CreateHookEntry(hookType, HookData, FuncOrSelf, callbackFuncName or functionName)
 	
+	local shouldSetHook = self.MainLuaLoadingFinished
+	
 	if(flags) then
 	  if(bit.band(flags, PassHookHandle) ~= 0) then
 	    handle:SetPassHandle(true)
 	  end
+	  
+	  if(bit.band(flags, InstantHookFlag) ~= 0) then
+	    shouldSetHook = true
+	  end
 	end
 	
-	if(self.MainLuaLoadingFinished) then
-		if(self.FunctionHooks[functionName]) then
+	if(shouldSetHook) then
+		if(HookData.Dispatcher) then
 			self:UpdateDispatcher(HookData)
 		else
 			self:CreateAndSetHook(HookData, functionName)
@@ -515,13 +522,19 @@ function ClassHooker:HookClassFunctionType(hookType, classname, functioName, Fun
 
 	local handle = CreateHookEntry(hookType, HookData, FuncOrSelf, callbackFuncName or functionName)
 	
+	local shouldSetHook = self.MainLuaLoadingFinished
+	
 	if(flags) then
 	  if(bit.band(flags, PassHookHandle) ~= 0) then
 	    handle:SetPassHandle(true)
 	  end
+
+	  if(bit.band(flags, InstantHookFlag) ~= 0) then
+	    shouldSetHook = true
+	  end
 	end
 	
-	if(self.MainLuaLoadingFinished) then
+	if(shouldSetHook) then
 		if self:IsClassHookSet(classname, functioName) then
 			self:UpdateDispatcher(HookData)
 		else
@@ -583,6 +596,8 @@ function ClassHooker:UpdateDispatcher(hookData)
   local newDispatcher = DispatchBuilder:CreateDispatcher(hookData) or hookData.RealOrignal
 
   local FunctionName = hookData.Name 
+
+  assert(FunctionName)
 
   if(hookData.Class) then
     local classtbl = _G[hookData.Class]
@@ -820,7 +835,7 @@ local function Mixin_HookClassFunctionType(self, hooktype, classname, funcName, 
 	return handle
 end
 
-local function Mixin_HookFunctionType(self, hooktype, funcName, callbackFuncName)
+local function Mixin_HookFunctionType(self, hooktype, funcName, callbackFuncName, ...)
 	
 	--default to the to using a function with the same name as the hooked funcion
 	if(not callbackFuncName) then
@@ -834,9 +849,9 @@ local function Mixin_HookFunctionType(self, hooktype, funcName, callbackFuncName
 			error(string.format("ClassHooker:HookFunctionType hook callback function \"%s\" does not exist", callbackFuncName))
 		end
 		
-		handle = ClassHooker:HookFunctionType(hooktype, funcName, self, callbackFuncName)
+		handle = ClassHooker:HookFunctionType(hooktype, funcName, self, callbackFuncName, ...)
 	else
-		handle = ClassHooker:HookFunctionType(hooktype, funcName, callbackFuncName)
+		handle = ClassHooker:HookFunctionType(hooktype, funcName, callbackFuncName, ...)
 		handle[2] = self
 	end
 
@@ -845,7 +860,7 @@ local function Mixin_HookFunctionType(self, hooktype, funcName, callbackFuncName
 	return handle
 end
 
-local function Mixin_HookLibraryFunction(self, hooktype, libName, funcName, callbackFuncName)
+local function Mixin_HookLibraryFunction(self, hooktype, libName, funcName, callbackFuncName, ...)
 	
 	--default to the to using a function with the same name as the hooked funcion
 	if(not callbackFuncName) then
@@ -859,9 +874,9 @@ local function Mixin_HookLibraryFunction(self, hooktype, libName, funcName, call
 			error(string.format("ClassHooker:HookLibraryFunction hook callback function \"%s\" does not exist", callbackFuncName))
 		end
 
-		handle = ClassHooker:HookLibraryFunctionType(hooktype, libName, funcName, self, callbackFuncName)
+		handle = ClassHooker:HookLibraryFunctionType(hooktype, libName, funcName, self, callbackFuncName, ...)
 	else
-		handle = ClassHooker:HookLibraryFunctionType(hooktype, libName, funcName, callbackFuncName)
+		handle = ClassHooker:HookLibraryFunctionType(hooktype, libName, funcName, callbackFuncName, ...)
 		handle[2] = self
 	end
 

@@ -439,28 +439,45 @@ function ModEntry:InjectFunctions()
 			LoadTracker:LoadScriptAfter(scriptPath, JoinPaths(self.Path, afterScriptPath), self.FileSource)
 		end
 	end
-
-  if(NS2_IO) then	
-    if(not self.IsArchive) then
-	    ModTable.LoadLuaDllModule = function(selfArg, path) 
-	    	return NS2_IO.LoadLuaDllModule(self.FileSource, JoinPaths(self.Path, path))
-	    end
+	
+  if(__ModPath or (NS2_IO and not self.IsArchive)) then	
+	  ModTable.LoadLuaDllModule = function(selfArg, path) 
+	    return self:LoadLuaDllModule(path)
 	  end
-	else
-	  if(__ModPath) then
-	    ModTable.LoadLuaDllModule = function(selfArg, path) 
-	      local fullPath = JoinPaths(JoinPaths(__ModPath, self.GameFileSystemPath), path)
-	      
-	      local funcName = GetFileNameWithoutExt(path)
-	      
-	      if(funcName) then
-	        funcName = "luaopen_"..funcName
-	      end
-	      
-	      return package.loadlib(fullPath, funcName)
+	  
+	  ModTable.RunLuaDllModule = function(selfArg, path)
+	    local entrypoint, msg, where = self:LoadLuaDllModule(path)
+    
+	    if(not entrypoint) then
+	      error(string.format("Error while Loading %s lua dll module:%s", path, msg))
 	    end
-	  end
+    
+	    return entrypoint()
+    end
 	end
+end
+
+if(NS2_IO) then
+  
+  function ModEntry:LoadLuaDllModule(path)
+    return NS2_IO.LoadLuaDllModule(self.FileSource, JoinPaths(self.Path, path))
+  end
+else
+  
+  function ModEntry:LoadLuaDllModule(path)
+  
+    local fullPath = JoinPaths(JoinPaths(__ModPath, self.GameFileSystemPath), path)
+    
+    local funcName = GetFileNameWithoutExt(path)
+    
+    Shared.Message("Loading lua dll module "..path)
+    
+    if(funcName) then
+      funcName = "luaopen_"..funcName
+    end
+    
+    return package.loadlib(fullPath, funcName)
+  end
 end
 
 function ModEntry:MainLoadPhase()

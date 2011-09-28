@@ -10,7 +10,6 @@ if(not ModLoader) then
 		Mods = {},
 	}
 	
-	
 	//ActiveMods = {}
 	
 	//ModLoader.Mods = Mods
@@ -29,6 +28,7 @@ local OppositeVMName = (Server and "Client") or "Server"
 
 function ModLoader:Init()
 	self.SV = SavedVariables("ModLoader", {"DisabledMods"}, self)
+
 	self.SV:Load()
 
   self:SetupConsoleCommands()
@@ -358,6 +358,10 @@ function ModLoader:ScannForMods()
 		end
 		
 	end
+end
+
+function ModLoader:UILoadingStarted()
+  self:DispatchModCallback("OnUILoading")
 end
 
 function ModLoader:OnClientLuaFinished()

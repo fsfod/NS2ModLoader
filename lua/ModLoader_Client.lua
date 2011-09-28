@@ -8,6 +8,7 @@ if(not success) then
  return
 end
 
+Script.Load("lua/StartupLoader.lua")
 
 Script.Load("lua/ModLoader_Shared.lua")
 
@@ -17,6 +18,9 @@ Script.Load("lua/ModEntry.lua")
 
 ModLoader:Init()
 
+StartupLoader:Activate()
+/*
 Script.Load("lua/Client.lua")
 ModLoader:OnClientLuaFinished()
 ClassHooker:OnLuaFullyLoaded()
+*/

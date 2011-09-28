@@ -11,9 +11,9 @@ function RawPrint(fmt, ...)
     values[1] = ((fmt or fmt == false) and ToString(fmt)) or "nil"
     
     for i=2,count,1 do
-      local value = select(i, ...)
+      local value = select(i-1, ...)
       if(value == nil) then
-        value = "nil"
+        values[i] = "nil"
       else
         values[i] = ToString(value)
       end
@@ -39,3 +39,7 @@ Script.Load("lua/PathUtil.lua")
 Script.Load("lua/EventUtil.lua")
 Script.Load("lua/ClassHooker.lua")
 Script.Load("lua/CallbackHandler.lua")
+
+if(not __ModPath and (FileExists("../ns2.exe") or FileExists("../ns2.exe"))) then
+  //__ModPath
+end

@@ -1,9 +1,10 @@
 
 NS2IOLoader = {
-  MarkerFile = "NS2_IO.dll",
+  MarkerFile = "NS2_IOBootstrap.dll",
+  RequiredFiles = {"luabind.dll", "SQLite3.dll", "7z.dll"},
   DefaultDirectory = "ModLoader",
-  ModulePath = "NS2_IO.dll",
-  EntryPoint = "luaopen_NS2_IO"
+  ModulePath = "NS2_IOBootstrap.dll",
+  EntryPoint = "Load_NS2_IO"
 }
 
 local ForwardSlash, BackSlash = string.byte("/"), string.byte("\\")
@@ -78,6 +79,14 @@ function NS2IOLoader:Load()
     
     if(not self:FileExists(JoinPaths(JoinPaths("..", self.DefaultDirectory), self.MarkerFile))) then
       return false, string.format("Mod was not launched the with helper bat or extracted to a directory named %s in the Natural Selection 2 directory.", self.DefaultDirectory)
+    end
+  end
+
+  if(self.RequiredFiles) then
+    for i,file in ipairs(self.RequiredFiles) do
+      if(not self:FileExists(file)) then
+        return false, string.format("Required file %s is missing", file)
+      end
     end
   end
 
