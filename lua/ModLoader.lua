@@ -325,7 +325,7 @@ function ModLoader:ScannForMods()
 		if(not Source:FileExists(modinfopath)) then
 			RawPrint("Skiping mod directory \"%s\" that has no modinfo.lua in it", dirname)
 		else
-		  self.Mods[dirname:lower()] = CreateModEntry(Source, dirname)
+		  self:AddModEntry(Source, dirname)
 		end
 	end
 	
@@ -339,15 +339,13 @@ function ModLoader:ScannForMods()
 	
 			if(success) then
 				if(archiveOrError:FileExists("modinfo.lua")) then
-					local modname = StripExtension(fileName)
-					
-					self.Mods[modname:lower()] = CreateModEntry(archiveOrError, modname, true)
+					self:AddModEntry(archiveOrError, StripExtension(fileName), true)
 				else
 				  local dirlist = archiveOrError:FindDirectorys("", "")
 				  local modname = dirlist[1]
 				  --if theres no modinfo.lua in the root of the archive see if the archive contains a single directory that has a modinfo.lua in it
 				  if(#dirlist == 1 and archiveOrError:FileExists(modname.."/modinfo.lua")) then
-				    self.Mods[modname:lower()] = CreateModEntry(archiveOrError, modname, true, modname.."/")
+				    self:AddModEntry(archiveOrError, modname, true, modname.."/")
 				  else
 				    RawPrint("Skiping mod archive \"%s\" that has no modinfo.lua in it", fileName)
 				  end
@@ -358,6 +356,28 @@ function ModLoader:ScannForMods()
 		end
 		
 	end
+end
+
+function ModLoader:AddModEntry(source, modname, isArchive, pathInSource)
+
+  local normName = modname:lower()
+
+  if(self.Mods[normName]) then
+    
+    local mod = self.Mods[normName]
+    
+    
+    if(isArchive and not mod.IsArchive) then
+      RawPrint("Skipping mod %s in archive because there is mod with the same name in a folder already loaded", modname)
+    else
+      RawPrint("Skipping mod %s because another mod with the same name has already been loaded", modname)
+    end
+    
+   return
+  end
+
+
+  self.Mods[normName] = CreateModEntry(source, modname, isArchive, pathInSource)
 end
 
 function ModLoader:UILoadingStarted()

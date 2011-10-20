@@ -57,6 +57,21 @@ function GetFileNameWithoutExt(path)
 	return (ext and string.sub(path, 1, ext-1)) or nil
 end
 
+function GetFileNameFromPath(path)
+
+	local index = string.find(path, "[%/%\\]", -#path)
+
+	if(index) then
+		if(index == #path or index+1 == #path) then
+		  return nil
+		end
+
+		return string.sub(path, index+1)
+	end
+
+	return path
+end
+
 function StripExtension(filename)
 
 	local index = string.find(filename, "%.", -#filename)

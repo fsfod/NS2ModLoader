@@ -36,3 +36,4 @@ buildzip.bat
 *.rar
 ui/*
 ModPath.lua
+autoexec/*
