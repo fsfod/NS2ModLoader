@@ -406,7 +406,7 @@ function ClassHooker:PostHookFunction(...)
 	end
 end
 
-local function CreateHookEntry(hookType, HookData, FuncOrSelf, callbackFuncName)
+local function CreateHookEntry(hookType, HookData, FuncOrSelf, callbackFuncName, flags)
 	
 	local hookTable = HookData
 	
@@ -437,11 +437,26 @@ local function CreateHookEntry(hookType, HookData, FuncOrSelf, callbackFuncName)
 		hookTable.Orignal = handle
 		hookTable.ReplacedOrignal = handle
 	end
-	
+
 	return handle
 end
 
-function ClassHooker:HookLibraryFunctionType(hookType, libName, functionName, FuncOrSelf, callbackFuncName)
+function ClassHooker:ProcessHookEntryFlags(handle, flags)
+
+	if(flags) then
+	  if(bit.band(flags, PassHookHandle) ~= 0) then
+	    handle:SetPassHandle(true)
+	  end
+	  
+	  if(bit.band(flags, InstantHookFlag) ~= 0) then
+	    return true
+	  end
+	end
+	
+	return false
+end
+
+function ClassHooker:HookLibraryFunctionType(hookType, libName, functionName, FuncOrSelf, callbackFuncName, flags)
 
   local LibHookList = self.LibaryHooks[libName]
   
@@ -469,7 +484,8 @@ function ClassHooker:HookLibraryFunctionType(hookType, libName, functionName, Fu
 
   local handle = CreateHookEntry(hookType, HookData, FuncOrSelf, callbackFuncName or functionName)
 
-  if(self.InstantHookLibs[libName] or self.MainLuaLoadingFinished) then
+	if(self:ProcessHookEntryFlags(handle, flags) or self.MainLuaLoadingFinished or self.InstantHookLibs[libName]) then
+
 		if(HookData.Dispatcher) then
 			self:UpdateDispatcher(HookData)
 		else
@@ -484,21 +500,11 @@ function ClassHooker:HookFunctionType(hookType, functionName, FuncOrSelf, callba
 	
 	local HookData = CheckCreateHookTable(self.FunctionHooks, functionName, hookType)
 		
-	local handle = CreateHookEntry(hookType, HookData, FuncOrSelf, callbackFuncName or functionName)
+	local handle = CreateHookEntry(hookType, HookData, FuncOrSelf, callbackFuncName or functionName, flags)
 	
-	local shouldSetHook = self.MainLuaLoadingFinished
+	local shouldSetHook = self:ProcessHookEntryFlags(handle, flags) or self.MainLuaLoadingFinished
 	
-	if(flags) then
-	  if(bit.band(flags, PassHookHandle) ~= 0) then
-	    handle:SetPassHandle(true)
-	  end
-	  
-	  if(bit.band(flags, InstantHookFlag) ~= 0) then
-	    shouldSetHook = true
-	  end
-	end
-	
-	if(shouldSetHook) then
+  if(shouldSetHook) then
 		if(HookData.Dispatcher) then
 			self:UpdateDispatcher(HookData)
 		else
@@ -522,17 +528,7 @@ function ClassHooker:HookClassFunctionType(hookType, classname, functioName, Fun
 
 	local handle = CreateHookEntry(hookType, HookData, FuncOrSelf, callbackFuncName or functionName)
 	
-	local shouldSetHook = self.MainLuaLoadingFinished
-	
-	if(flags) then
-	  if(bit.band(flags, PassHookHandle) ~= 0) then
-	    handle:SetPassHandle(true)
-	  end
-
-	  if(bit.band(flags, InstantHookFlag) ~= 0) then
-	    shouldSetHook = true
-	  end
-	end
+	local shouldSetHook = self:ProcessHookEntryFlags(handle, flags) or self.MainLuaLoadingFinished
 	
 	if(shouldSetHook) then
 		if self:IsClassHookSet(classname, functioName) then
@@ -809,7 +805,7 @@ function ClassHooker:OnLuaFullyLoaded()
 	end
 end
 
-local function Mixin_HookClassFunctionType(self, hooktype, classname, funcName, callbackFuncName)
+local function Mixin_HookClassFunctionType(self, hooktype, classname, funcName, callbackFuncName, ...)
 	
 	--default to the to using a function with the same name as the hooked funcion
 	if(not callbackFuncName) then
@@ -823,9 +819,9 @@ local function Mixin_HookClassFunctionType(self, hooktype, classname, funcName, 
 			error(string.format("ClassHooker:HookClassFunctionType hook callback function \"%s\" does not exist", callbackFuncName))
 		end
 		
-		handle = ClassHooker:HookClassFunctionType(hooktype, classname, funcName, self, callbackFuncName)
+		handle = ClassHooker:HookClassFunctionType(hooktype, classname, funcName, self, callbackFuncName, ...)
 	else
-		handle = ClassHooker:HookClassFunctionType(hooktype, classname, funcName, callbackFuncName)
+		handle = ClassHooker:HookClassFunctionType(hooktype, classname, funcName, callbackFuncName, ...)
 		
 		handle[2] = self
 	end

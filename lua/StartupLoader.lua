@@ -22,9 +22,9 @@ function StartupLoader:Activate()
       Shared.Message("StartupLoader is already active")
     return
   end
-  
+
   ClassHooker:HookFunction("Client", "Connect", self, "LoadFullGameCode")
-  
+
   ClassHooker:HookFunction("Client", "StartServer", self, "LoadFullGameCode")
 
   for i,script in ipairs(self.ReducedLuaList) do
@@ -34,6 +34,10 @@ function StartupLoader:Activate()
   self:SetHooks()
 
   ModLoader:UILoadingStarted()
+
+  if(GUIMenuManager) then
+    GUIMenuManager:ShowMenu()
+  end
   
   self.Active = true
 end
@@ -52,9 +56,7 @@ function StartupLoader:LoadFullGameCode()
     Script.Load(script)
   end
 
-  if(ClassHooker) then
-    ClassHooker:OnLuaFullyLoaded()
-  end
+  ClassHooker:OnLuaFullyLoaded()
 
   if(ModLoader) then
     ModLoader:OnClientLuaFinished()
