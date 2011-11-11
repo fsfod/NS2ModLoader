@@ -314,9 +314,7 @@ function ClassHooker:CreateAndSetClassHook(hookData, class, funcname)
 	if(not hookData.Orignal) then
 		hookData.Orignal = OrignalFunction 
 	end
-	
-	hookData.Class = class
-	hookData.Name = funcname
+
 	--we have this so we have a second copy for when a hook disable calling the orignal by replacing Orignal with a dummy function through BlockCallOrignal
 	hookData.RealOrignal = OrignalFunction
 
@@ -328,7 +326,7 @@ end
 local function CheckCreateHookTable(hookTable, functionName, hookType)
 
 	if(not hookTable[functionName]) then
-		hookTable[functionName] = {}
+		hookTable[functionName] = {Name = functionName}
 	end
 	
 	hookTable = hookTable[functionName]
@@ -356,7 +354,11 @@ function ClassHooker:CheckCreateClassHookTable(classname, functioname, hookType)
 		self.ClassFunctionHooks[classname] = hookTable
 	end
 
-	return CheckCreateHookTable(hookTable, functioname, hookType)
+  local tbl = CheckCreateHookTable(hookTable, functioname, hookType)
+
+  tbl.Class = class
+
+	return tbl
 end
 
 --args classname functioName, FuncOrSelf, [callbackFuncName]
@@ -406,7 +408,7 @@ function ClassHooker:PostHookFunction(...)
 	end
 end
 
-local function CreateHookEntry(hookType, HookData, FuncOrSelf, callbackFuncName, flags)
+local function CreateHookEntry(hookType, HookData, FuncOrSelf, callbackFuncName)
 	
 	local hookTable = HookData
 	
@@ -456,6 +458,7 @@ function ClassHooker:ProcessHookEntryFlags(handle, flags)
 	return false
 end
 
+//if the library is either Shared, Client or Server then hook will instantly be set
 function ClassHooker:HookLibraryFunctionType(hookType, libName, functionName, FuncOrSelf, callbackFuncName, flags)
 
   local LibHookList = self.LibaryHooks[libName]
@@ -468,7 +471,7 @@ function ClassHooker:HookLibraryFunctionType(hookType, libName, functionName, Fu
   local HookData = LibHookList[functionName]
   
   if(not HookData) then
-    HookData = {Library = libName}
+    HookData = {Library = libName, Name = functionName}
 		LibHookList[functionName] = HookData
 	end
 	
@@ -588,6 +591,10 @@ function ClassHooker:RemoveHook(hook)
 end
 
 function ClassHooker:UpdateDispatcher(hookData)
+   
+  if(not hookData.Dispatcher) then
+   return
+  end
    
   local newDispatcher = DispatchBuilder:CreateDispatcher(hookData) or hookData.RealOrignal
 
@@ -821,7 +828,7 @@ local function Mixin_HookClassFunctionType(self, hooktype, classname, funcName, 
 		
 		handle = ClassHooker:HookClassFunctionType(hooktype, classname, funcName, self, callbackFuncName, ...)
 	else
-		handle = ClassHooker:HookClassFunctionType(hooktype, classname, funcName, callbackFuncName, ...)
+		handle = ClassHooker:HookClassFunctionType(hooktype, classname, funcName, callbackFuncName, nil, ...)
 		
 		handle[2] = self
 	end
@@ -847,7 +854,7 @@ local function Mixin_HookFunctionType(self, hooktype, funcName, callbackFuncName
 		
 		handle = ClassHooker:HookFunctionType(hooktype, funcName, self, callbackFuncName, ...)
 	else
-		handle = ClassHooker:HookFunctionType(hooktype, funcName, callbackFuncName, ...)
+		handle = ClassHooker:HookFunctionType(hooktype, funcName, callbackFuncName, nil, ...)
 		handle[2] = self
 	end
 
@@ -872,7 +879,7 @@ local function Mixin_HookLibraryFunction(self, hooktype, libName, funcName, call
 
 		handle = ClassHooker:HookLibraryFunctionType(hooktype, libName, funcName, self, callbackFuncName, ...)
 	else
-		handle = ClassHooker:HookLibraryFunctionType(hooktype, libName, funcName, callbackFuncName, ...)
+		handle = ClassHooker:HookLibraryFunctionType(hooktype, libName, funcName, callbackFuncName, nil, ...)
 		handle[2] = self
 	end
 

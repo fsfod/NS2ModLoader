@@ -109,37 +109,36 @@ function ModEntry:LoadModinfo()
   end
 
 	local Source = self.FileSource
-  local success, chunkOrError
-
+  local success, chunk, errorMsg
 
 	if(Source) then
-    success, chunkOrError = pcall(Source.LoadLuaFile, Source, self.Path.."modinfo.lua")
-  elseif(__ModPath) then
-    success, chunkOrError = loadfile(string.format("%s/modinfo.lua", JoinPaths(__ModPath, self.GameFileSystemPath)))
+    success, chunk, errorMsg = pcall(Source.LoadLuaFile, Source, self.Path.."modinfo.lua")
     
-    --loadfile returns the function first and the error second. nil function = error set
-    if(success) then
-      chunkOrError = success
-    end
+    //if LoadLuaFile threw an error the second return value from pcall will be the error 
+    if(not success) then
+      errorMsg = chunk
+    end 
+  elseif(__ModPath) then
+    chunk, errorMsg = loadfile(string.format("%s/modinfo.lua", JoinPaths(__ModPath, self.GameFileSystemPath)))
   end
 
-	if(not success) then
+	if(success == false) then
 	  self.LoadState = LoadState.ModinfoLoadError
-		self:PrintError("error while trying to read %s's modinfo file:\n%s", self.Name, chunkOrError)
+		self:PrintError("error while trying to read %s's modinfo file:\n%s", self.Name, errorMsg)
 	 return false
 	end
 
-	if(type(chunkOrError) == "string") then
+	if(errorMsg) then
 	  self.LoadState = LoadState.ModinfoParseError
 
-		self:PrintError("error while parsing %s's modinfo file:\n%s", self.Name, chunkOrError)
+		self:PrintError("error while parsing %s's modinfo file:\n%s", self.Name, errorMsg)
 	 return false
 	end
 		
 	local fields = setmetatable({}, ChangeCaseMT)
-		setfenv(chunkOrError, fields)
+		setfenv(chunk, fields)
 
-	local success, msg = pcall(chunkOrError)
+	local success, msg = pcall(chunk)
 		 
 	if(not success) then
 	  self.LoadState = LoadState.ModinfoRunError
