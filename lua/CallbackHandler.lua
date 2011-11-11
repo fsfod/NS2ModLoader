@@ -262,6 +262,19 @@ function CallbackHandler:New(target, RegisterName, UnregisterName, UnregisterAll
 			end
 		end
 	end
+	
+	target.ClearAllCallbacks = function(keeplist)
+	  
+	  for eventname, callbacks in pairs(events) do
+	    if(not keeplist or not keeplist[eventname]) then
+	      events[eventname] = nil
+	    end
+	  end
+	end
+
+  target.ClearAllCallbacksFor = function(eventname)
+	  events[eventname] = nil
+	end
 
 	return registry
 end
