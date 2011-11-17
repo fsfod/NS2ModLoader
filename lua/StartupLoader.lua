@@ -88,7 +88,7 @@ end
 
 function StartupLoader.OnSendKeyEvent(key, down)
 
-  local eventHandled, isRepeat, wheelDirection = GUIManagerEx.PreProcessKeyEvent(key, down)
+  local eventHandled, isRepeat, wheelDirection = InputKeyHelper:PreProcessKeyEvent(key, down)
 
   return eventHandled or GUIMenuManager:SendKeyEvent(key, down, isRepeat, wheelDirection)
 end

@@ -13,6 +13,8 @@ Script.Load("lua/StartupLoader.lua")
 Script.Load("lua/ModLoader_Shared.lua")
 
 Script.Load("lua/PlayerEvents.lua")
+Script.Load("lua/InputKeyHelper.lua")
+
 Script.Load("lua/ModLoader.lua")
 Script.Load("lua/ModEntry.lua")
 
