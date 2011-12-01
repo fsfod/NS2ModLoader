@@ -23,6 +23,8 @@ function StartupLoader:Activate()
     return
   end
 
+  self.gRenderCamera = Client.CreateRenderCamera()
+
   ClassHooker:HookFunction("Client", "Connect", self, "LoadFullGameCode")
 
   ClassHooker:HookFunction("Client", "StartServer", self, "LoadFullGameCode")
@@ -47,6 +49,8 @@ function StartupLoader:LoadFullGameCode()
   if(not self.Active) then
     return
   end
+
+   Client.DestroyRenderCamera(self.gRenderCamera)
 
   self:ClearHooks()
 
@@ -75,15 +79,28 @@ function StartupLoader:AddReducedLuaScript(scriptPath)
   table.insert(self.ReducedLuaList, scriptPath)
 end
 
-function StartupLoader.OnSetupCamera()
+function StartupLoader.OnUpdateRender()
+ 
+   local cullingMode = RenderCamera.CullingMode_Occlusion
 
-  local getCamera = MenuManager and MenuManager.GetCinematicCamera
+   local gRenderCamera = StartupLoader.gRenderCamera
 
-  if(getCamera) then
-    return getCamera()
-  else
-    return false
-  end
+   local camera = MenuManager.GetCinematicCamera()
+
+    if(camera ~= false) then
+      
+       gRenderCamera:SetCoords( camera:GetCoords() )
+       gRenderCamera:SetFov( camera:GetFov() )
+       gRenderCamera:SetNearPlane( 0.01 )
+       gRenderCamera:SetFarPlane( 10000.0 )
+       gRenderCamera:SetCullingMode(cullingMode)
+       
+       Client.SetRenderCamera(gRenderCamera)
+   else
+       Client.SetRenderCamera(nil)
+   end
+   
+
 end
 
 function StartupLoader.OnSendKeyEvent(key, down)
@@ -103,7 +120,7 @@ end
 
 function StartupLoader:SetHooks()
 
-  Event.Hook("SetupCamera", self.OnSetupCamera)
+  Event.Hook("UpdateRender", self.OnUpdateRender)
 
   if(GUIMenuManager) then
     Event.Hook("SendKeyEvent", self.OnSendKeyEvent)
@@ -113,7 +130,7 @@ end
 
 function StartupLoader:ClearHooks()
 
-  Event.RemoveHook("SetupCamera", self.OnSetupCamera)
+  Event.RemoveHook("UpdateRender", self.OnUpdateRender)
   
   if(GUIMenuManager) then
     Event.RemoveHook("SendKeyEvent", self.OnSendKeyEvent)

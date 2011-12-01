@@ -39,3 +39,7 @@ Script.Load("lua/PathUtil.lua")
 Script.Load("lua/EventUtil.lua")
 Script.Load("lua/ClassHooker.lua")
 Script.Load("lua/CallbackHandler.lua")
+
+Script.Load("lua/FullModsManager.lua")
+
+FullModsManager:Init()

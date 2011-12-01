@@ -216,6 +216,7 @@ local OptionalFieldList = {
 	Description = "string",
 	CanLateLoad = "boolean",
 	MountSource = "boolean",
+	DLLModules = "table",
 }
 
 function ModEntry:ValidateModinfo() 
@@ -245,6 +246,7 @@ function ModEntry:ValidateModinfo()
 	end
 
 	for fieldName,fieldType in pairs(OptionalFieldList) do
+
 		if(fieldlist[fieldName]) then		
 			if(type(fieldlist[fieldName]) ~= fieldType) then
 				RawPrint("Ignoring %s's modinfo field %s  because it is the wrong type(%s) it should be a %s", self.Name, fieldName, type(fieldlist[fieldName]), fieldType)
@@ -263,7 +265,8 @@ function ModEntry:ValidateModinfo()
 		LoadError = LoadError or LoadState.ModinfoFieldInvalid
 	end
 
-  if(not LoadError) then  
+  if(not LoadError) then 
+ 
     if(_G[fieldlist.ModTableName]) then
       self:PrintError("%s's modinfo specifed a mod table name of %s but there is already a table named that in the global table", self.Name, fieldlist.ModTableName)
       LoadError = LoadError or LoadState.ModTableNameInUse
@@ -294,6 +297,7 @@ function ModEntry:Load()
   end
 
 	if(fields.ScriptOverrides) then
+
 		for replacing,replacer in pairs(fields.ScriptOverrides) do
 			if(type(replacing) == "string") then
 				--default to the same path as the replacing file if theres just a placeholder bool
