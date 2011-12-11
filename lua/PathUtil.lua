@@ -42,7 +42,7 @@ end
 
 function GetFileNameWithoutExt(path)
 
-	local index = string.find(path, "[%/%\\]", -#path)
+	local index = string.find(path, "[%/%\\]([^.]*)$")
   local ext = string.find(path, "%.", -#path)
 
 
@@ -58,38 +58,15 @@ function GetFileNameWithoutExt(path)
 end
 
 function GetFileNameFromPath(path)
-
-	local index = string.find(path, "[%/%\\]", -#path)
-
-	if(index) then
-		if(index == #path or index+1 == #path) then
-		  return nil
-		end
-
-		return string.sub(path, index+1)
-	end
-
-	return path
+	return string.match(path, "([^%/%\\]*)$") or path
 end
 
 function StripExtension(filename)
-
-	local index = string.find(filename, "%.", -#filename)
-
-	if(index) then
-		return string.sub(filename, 1, index-1)
-	end
-	
-	return filename
+	return string.match(filename, "(.+)%.[^.]+$") or filename
 end
 
 function GetExtension(filename)
-
-	local index = string.find(filename, "%.", -#filename)
-
-	if(index) then
-		return string.sub(filename, index)
-	end
+  return string.match(filename, "(%.[^.]*)$")
 end
 
 local function WriteStackTrace() 

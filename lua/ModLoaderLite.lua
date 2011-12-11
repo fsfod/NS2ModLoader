@@ -2,7 +2,7 @@ local EntryMetaTable = {
 	__index = ModEntry,
 }
 
-function CreateModEntry(rootDirectory, name)
+local function CreateModEntry(rootDirectory, name)
 	
 	local ModData = { 
 		Name = name,
@@ -34,6 +34,52 @@ function ModLoader:ScannForMods()
 		else
 			Shared.Message("ModLoader.ScannForMods: not a valid mod "..path)
 		end
+	end
+	
+	//7zip archive system is not loaded
+	if(not OpenArchive) then
+	  return
+	end
+	
+  local SupportedArchives = {
+		  [".zip"] = true,
+		  [".rar"] = true,
+		  [".7ip"] = true,
+	}
+	
+	matchingFiles = {}
+	
+	Shared.GetMatchingFileNames("/Mods/*.*", false, matchingFiles)
+
+	--scan for mods are contained in archives that are in our "Mods" folder
+	for _,path in ipairs(matchingFiles) do	
+	  local fileName = GetFileNameFromPath(path)
+	
+		if(SupportedArchives[(GetExtension(fileName) or ""):lower()]) then
+			local success, archiveOrError = pcall(OpenArchive, path)
+	
+			if(success) then
+			  
+				if(archiveOrError:FileExists("modinfo.lua")) then
+					self:AddModEntry(archiveOrError, StripExtension(fileName), true)
+				else
+				  
+				  local dirlist = archiveOrError:FindDirectorys("", "")
+				  local modname = dirlist[1]
+				  
+				  --if theres no modinfo.lua in the root of the archive see if the archive contains a single directory that has a modinfo.lua in it
+				  if(#dirlist == 1 and archiveOrError:FileExists(modname.."/modinfo.lua")) then
+				    self:AddModEntry(archiveOrError, modname, true, modname.."/")
+				  else
+				    RawPrint("Skiping mod archive \"%s\" that has no modinfo.lua in it", fileName)
+				  end
+				end
+				
+			else
+				RawPrint("error while opening mod archive %s :\n%s", fileName, archiveOrError)
+			end
+		end
+		
 	end
 end
 

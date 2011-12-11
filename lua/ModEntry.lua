@@ -45,7 +45,7 @@ function CreateModEntry(Source, dirname, IsArchive, pathInSource)
 		LoadState = 0,
 	}
 
-	local IsFromRootSource = IsRootFileSource(Source)
+	local IsFromRootSource = IsRootFileSource and IsRootFileSource(Source)
 
 	if(IsFromRootSource) then
 		ModData.GameFileSystemPath = "Mods/"..dirname
@@ -217,6 +217,7 @@ local OptionalFieldList = {
 	CanLateLoad = "boolean",
 	MountSource = "boolean",
 	DLLModules = "table",
+	RequiresLuabind = "boolean",
 }
 
 function ModEntry:ValidateModinfo() 
@@ -289,6 +290,17 @@ function ModEntry:Load()
 	end
 	
 	local fields = self.Modinfo
+	
+	if(fields.RequiresLuabind) then
+	
+	  if(not ModuleBootstrap or not ModuleBootstrap:TryLoadLuabind()) then
+	    self.LoadState = LoadState.DependencyMissing
+	    
+	    self:PrintError("%s mod requires luabind but luabind is missing or failed to load", self.Name)
+	    
+	    return false
+	  end
+	end
 	
 	if(_G[fields.ModTableName]) then
     self:PrintError("%s's modinfo specifed a mod table name of %s but there is already a table named that in the global table", self.Name, fieldlist.ModTableName)
