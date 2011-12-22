@@ -1,3 +1,6 @@
+//
+//   Created by:   fsfod
+//
 Script.Load("NS2_IO.lua")
 
 local success, msg = NS2IOLoader:Load()

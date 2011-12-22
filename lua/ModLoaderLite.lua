@@ -1,3 +1,7 @@
+//
+//   Created by:   fsfod
+//
+
 local EntryMetaTable = {
 	__index = ModEntry,
 }

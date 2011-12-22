@@ -1,7 +1,12 @@
+//
+//   Created by:   fsfod
+//
+
 local function UnsafeDispatcher(func, eh, ...)
   return true, func(...)
 end
 
+//Adapted from http://www.wowace.com/addons/callbackhandler/
 local function CreateDispatcher(argCount)
   
   if(decoda_output) then

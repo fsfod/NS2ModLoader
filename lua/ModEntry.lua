@@ -1,3 +1,7 @@
+//
+//   Created by:   fsfod
+//
+
 ModEntry = {}
 
 local xpcall = xpcall

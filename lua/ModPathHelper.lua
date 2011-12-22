@@ -1,3 +1,7 @@
+//
+//   Created by:   fsfod
+//
+
 Script.Load("lua/PathUtil.lua")
 
 if(not __ModPath and FileExists("ModPath.lua")) then

@@ -1,3 +1,7 @@
+//
+//   Created by:   fsfod
+//
+
 DispatchBuilder = {}
  
 local RawDispatcherI, RawClassDispatcherI

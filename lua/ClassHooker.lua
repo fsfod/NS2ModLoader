@@ -1,5 +1,7 @@
+//
+//   Created by:   fsfod
+//
 --[[
-ClassHooker by fsfod
 3 hook types:
 
 
