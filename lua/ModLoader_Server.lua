@@ -1,12 +1,16 @@
 //
 //   Created by:   fsfod
 //
-Script.Load("NS2_IO.lua")
+__ModFolderName = "ModLoader"
 
-local success, msg = NS2IOLoader:Load()
+Script.Load("lua/PathUtil.lua")
+Script.Load("lua/ModPathHelper.lua")
+
+Script.Load("lua/ModuleBootstrap.lua")
+
+local success, msg = ModuleBootstrap:LoadModule("NS2_IO", true)
 
 if(not success) then
-  //error("failed to load NS2_IO.dll module because of error:\n "..msg)
 	Shared.Message("Stopping because NS2_IO encounted error: "..(msg or "unknown error"))
  return
 end
