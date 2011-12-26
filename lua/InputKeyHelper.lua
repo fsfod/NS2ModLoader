@@ -154,7 +154,10 @@ InputKeyHelper.KeyList = {
 	"JoystickPovN",
 	"JoystickPovS",
 	"JoystickPovE",
-	"JoystickPovW"
+	"JoystickPovW",
+	//really dumb we have to add these since the engine just sends both scroll up and down events as MouseZ
+	"MouseWheelUp",
+	"MouseWheelDown",
 }
 
 function InputKeyHelper:KeyNameExists(keyName)
@@ -180,11 +183,15 @@ function InputKeyHelper:FindAndCorrectKeyName(key)
 	return (key and self.LowerCaseKeyList[key:lower()]) or false
 end
 
-function InputKeyHelper:ConvertToKeyName(inputkeyNumber)
+function InputKeyHelper:ConvertToKeyName(inputkeyNumber, down)
 	
 	if(not self.KeyList[inputkeyNumber]) then
 		error("InputKeyHelper:ConvertToKeyName no matching key with the number ".. (inputkeyNumber and tostring(inputkeyNumber)) or "nil")
 	end
+
+  if(inputkeyNumber == InputKey.MouseZ) then
+    return (down and "MouseWheelUp") or "MouseWheelDown"
+  end
 
 	return self.KeyList[inputkeyNumber]
 end
@@ -210,8 +217,8 @@ function InputKeyHelper:PreProcessKeyEvent(key, down)
   end
 
   local eventHandled, wheelDirection
-
-  if(key == InputKey.MouseZ and GetWheelMessages) then
+/*
+  if(key == InputKey.MouseZ and false) then
     if(WheelMessages == nil) then
       WheelMessages = GetWheelMessages() or false
     end
@@ -231,8 +238,8 @@ function InputKeyHelper:PreProcessKeyEvent(key, down)
       eventHandled = true
     end
   end
-  
-  return eventHandled, IsRepeat, wheelDirection
+*/  
+  return eventHandled, IsRepeat
 end
 
 function InputKeyHelper:Update()

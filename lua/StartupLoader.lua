@@ -108,9 +108,9 @@ end
 
 function StartupLoader.OnSendKeyEvent(key, down)
 
-  local eventHandled, isRepeat, wheelDirection = InputKeyHelper:PreProcessKeyEvent(key, down)
+  local eventHandled, isRepeat = InputKeyHelper:PreProcessKeyEvent(key, down)
 
-  return eventHandled or GUIMenuManager:SendKeyEvent(key, down, isRepeat, wheelDirection)
+  return eventHandled or GUIMenuManager:SendKeyEvent(key, down, isRepeat)
 end
 
 function StartupLoader.SendCharacterEvent(...)
