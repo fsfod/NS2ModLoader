@@ -241,9 +241,9 @@ function ClassHooker:PropergateHookToSubClass(class, funcName, hook, oldFunc)
 	end
 end
 
-function ClassHooker:RuntimeHookClass(class, funcname, hookData)
+function ClassHooker:RuntimeHookClass(className, funcname, hookData)
 	
-	local classTable = _G[class]
+	local classTable = _G[className]
 
 	local OrignalFunction = classTable[funcname]
 	
@@ -256,7 +256,7 @@ function ClassHooker:RuntimeHookClass(class, funcname, hookData)
 		hookData.Orignal = OrignalFunction 
 	end
 	
-	hookData.Class = class
+	hookData.Class = className
 	hookData.Name = funcname
 	
 	--we have this so we have a second copy for when a hook disable calling the orignal by replacing Orignal with a dummy function through BlockCallOrignal
@@ -264,7 +264,7 @@ function ClassHooker:RuntimeHookClass(class, funcname, hookData)
 
 	hookData.Dispatcher	= DispatchBuilder:CreateDispatcher(hookData, true)
 	
-	self:PropergateHookToSubClass(class, funcname, hookData.Dispatcher, OrignalFunction)
+	self:PropergateHookToSubClass(className, funcname, hookData.Dispatcher, OrignalFunction)
 end
 
 function ClassHooker:CreateAndSetHook(hookData, funcname)
@@ -358,7 +358,7 @@ function ClassHooker:CheckCreateClassHookTable(classname, functioname, hookType)
 
   local tbl = CheckCreateHookTable(hookTable, functioname, hookType)
 
-  tbl.Class = class
+  tbl.Class = classname
 
 	return tbl
 end
@@ -683,7 +683,7 @@ local reg = debug.getregistry()
 local Original_Class = _G.class
 
 
-function class(...) 
+_G.class = function(...) 
 	return ClassHooker:Class_Hook(...)
 end
 
