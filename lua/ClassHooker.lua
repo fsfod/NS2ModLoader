@@ -817,6 +817,23 @@ function ClassHooker:OnLuaFullyLoaded()
 			RawPrint("ClassHooker: Skipping hook for function \"%s\" because it cannot be found", funcName)
 		end
 	end
+		
+end
+
+function ClassHooker:ClientLoadComplete()
+
+  self.InstantHookLibs["Client"] = true
+
+  if(not self.LibaryHooks["Client"]) then
+    return
+  end
+
+  //check for any unset client hooks now that the client library is fully loaded
+	for funcName,hooktbl in pairs(self.LibaryHooks["Client"]) do
+	  if(not hooktbl.Dispatcher) then
+	    self:CreateAndSetHook(hooktbl, funcName)
+	  end
+	end
 end
 
 local function Mixin_HookClassFunctionType(self, hooktype, classname, funcName, callbackFuncName, ...)

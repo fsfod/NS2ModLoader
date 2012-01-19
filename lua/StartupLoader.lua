@@ -105,6 +105,7 @@ function StartupLoader:LoadComplete(errorMsg)
     end
   end
 
+  ClassHooker:ClientLoadComplete()
 
   if(ModLoader) then
     ModLoader:OnClientLoadComplete(errorMsg)
