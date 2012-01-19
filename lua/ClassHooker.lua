@@ -80,7 +80,11 @@ ClassHooker = {
 	LuabindTables = {},
 	
 	MainLuaLoadingFinished = false,
-	InstantHookLibs = {["Client"] = true, ["Server"] = true, ["Shared"] = true}
+	InstantHookLibs = {
+	  //["Client"] = true, 
+	  ["Server"] = true, 
+	  ["Shared"] = true
+	}
 }
 
 end
@@ -459,6 +463,7 @@ function ClassHooker:ProcessHookEntryFlags(handle, flags)
 	
 	return false
 end
+
 
 //if the library is either Shared, Client or Server then hook will instantly be set
 function ClassHooker:HookLibraryFunctionType(hookType, libName, functionName, FuncOrSelf, callbackFuncName, flags)

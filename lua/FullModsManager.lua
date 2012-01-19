@@ -7,7 +7,16 @@ if(not FullModsManager) then
   FullModsManager = {
     EnabledMods = {},
     ModSources = {},
+    ClientVMIsListenServer = false,
   }
+end
+
+function FullModsManager:RefreshModList()
+  ModSources = {}
+  
+	self:ScanForFullMods()
+
+  self.CurrentConflicts = self:CheckConflicts(self.EnabledMods) or {}
 end
 
 function FullModsManager:Init()
@@ -16,17 +25,27 @@ function FullModsManager:Init()
     return
   end
   
-  self.SV = SavedVariables("FullModsManager", {"EnabledMods"}, self)
+  self.SV = SavedVariables("FullModsManager", {"EnabledMods", "ClientVMIsListenServer"}, self)
 	self.SV:Load()
+	
+	if(Client and decoda_name == "Main") then
+	  self.ClientVMIsListenServer = false
+	end
 	
 	self:ScanForFullMods()
 
+  self.CurrentConflicts = self:CheckConflicts(self.EnabledMods) or {}
+
 	if(Server) then
 	  self.SV.AutoSave = false
-
+	end
+	
+	if(Server or self.ClientVMIsListenServer) then
+	  //server saved varibles are not auto saved so we can just blindly set this to false
+	  self.ClientVMIsListenServer = false
+	  
 	  self:MountFileSets(self.EnabledMods)
 	end
-
 end
 
 local modsFolderName = "FullMods"
@@ -67,6 +86,12 @@ end
 
 function FullModsManager:ScannFullModArchives()
 
+  local OpenArchive = _G.OpenArchive or (NS2_IO and NS2_IO.OpenArchive)
+
+  if(not OpenArchive) then
+    return
+  end
+
   local SupportedArchives = {
 		  [".zip"] = true,
 		  [".rar"] = true,
@@ -77,7 +102,7 @@ function FullModsManager:ScannFullModArchives()
 	
 	Shared.GetMatchingFileNames(modsFolderName.."/*.*", false, matchingFiles)
 
-	--scan for mods are contained in archives that are in our "Mods" folder
+	--scan for mods that are contained in archives that are in our "FullMods" folder
 	for _,path in ipairs(matchingFiles) do	
 	  local fileName = GetFileNameFromPath(path)
 	
@@ -93,7 +118,7 @@ function FullModsManager:ScannFullModArchives()
 			  else
 			    local dirlist = archive:FindDirectorys("", "")
 				  
-				  --if theres no modinfo.lua in the root of the archive see if the archive contains a single directory that has a modinfo.lua in it
+				  --if theres no luafiles in the root of the archive see if the archive contains a single directory that has the lua files
 				  if(#dirlist == 1) then
 				    if(archive:DirectoryExists(dirlist[1].."/lua")) then
 				      self:TryReadArchiveLuaList(name, archive, dirlist[1].."/lua")
@@ -106,8 +131,8 @@ function FullModsManager:ScannFullModArchives()
 				  elseif(#dirlist == 0) then
 				    self:TryReadArchiveLuaList(name, archive, "")
 				  else
-            //we could get really silly here and search each of the directorys for a lua directory and .lua files
-            RawPrint("Skipping fullmod archive %s because it contains multible root directorys", fileName) 
+            //we could get really silly here and search each of the directorys for a lua directory and/or .lua files
+            RawPrint("Skipping fullmod archive %s because it contains multiple root directorys", fileName) 
 				  end
 			  end
 
@@ -154,17 +179,33 @@ function FullModsManager:TryReadArchiveLuaList(name, archive, basePath)
       
     else
       
-      if(string.find(basePath, "%/lua$")) then
-        basepathLength = basepathLength-3
+      local luaIndex = string.find(basePath, "%/lua$")
+      
+      if(not luaIndex) then
+        
+        for i,script in ipairs(fileList) do
+          luaIndex = string.find(script, "%/lua%/")
+          
+          if(luaIndex) then
+            break
+          end
+        end
+        
+      end
+
+      
+      if(luaIndex) then
+        //skip the starting slash
+        luaIndex = luaIndex+1
         
         for i,path in ipairs(fileList) do
-          scriptList[path:sub(basepathLength)] = path
+          scriptList[path:sub(luaIndex)] = path
         end
         
       else
         
         for i,path in ipairs(fileList) do
-          scriptList["lua/"..path:sub(basepathLength)] = path
+          scriptList["lua/"..path:sub(basepathLength+2)] = path
         end
         
       end
@@ -176,6 +217,47 @@ function FullModsManager:TryReadArchiveLuaList(name, archive, basePath)
   self.Mods[name] = scriptList
   
   return true
+end
+
+function FullModsManager:GetEntrypointScript(archive, basePath)
+
+  local game_setupPath = JoinPaths(basePath, "game_setup.xml")
+
+  if(not archive:FileExists(game_setupPath)) then
+    
+    if(archive:FileExists("game_setup.xml")) then
+      game_setupPath = "game_setup.xml"
+    else
+      
+      game_setupPath = string.match(basePath, "^(.+)%/lua$") 
+      game_setupPath = game_setupPath and game_setupPath.."/game_setup.xml"
+      
+      if(not game_setupPath or not archive:FileExists(game_setupPath))  then
+        return nil
+      end
+
+    end    
+  end
+  
+  local success, result = pcall(archive.LoadFileToString, archive, game_setupPath)
+
+  if(not success) then
+    RawPrint("FullModsManager:GetEntrypointScript: Failed to load %s(%s)", game_setupPath, result)
+   return nil
+  end
+  
+  result = result:lower()
+  
+  local server = string.match(result, "%<server%>([^<])%<%/server%>")
+  
+  local client = string.match(result, "%<client%>([^<])%<%/client%>")
+  
+  if(Server) then
+    return server
+  else
+    return client
+  end
+  
 end
 
 function FullModsManager:CheckConflicts(modNames)
@@ -215,6 +297,21 @@ function FullModsManager:CheckConflicts(modNames)
   return (next(conflicts) and conflicts) or nil
 end
 
+function FullModsManager:GetModlistForConflict(scriptPath)
+  
+  if(not self.CurrentConflicts or not self.CurrentConflicts[scriptPath]) then
+    return nil
+  end
+  
+  local list = {}
+  
+  for modName,_ in pairs(self.CurrentConflicts[scriptPath]) do
+    table.insert(list, modName)
+  end
+
+  return list
+end
+
 function FullModsManager:MountEnabledMods()
   self:MountFileSets(self.EnabledMods)
 end
@@ -245,8 +342,7 @@ function FullModsManager:MountFileSets(modNames, overridePriorty)
           end
           
         end
-      end
-      
+      end     
     end
   end
 
@@ -291,6 +387,17 @@ function FullModsManager:GetModInfo(modName)
   end
   
   return not self.EnabledMods[modName], modName, conflicts or 0
+end
+
+function FullModsManager:GetConflictScriptList()
+
+  local list = {}
+
+  for scriptPath, modList in pairs(self.CurrentConflicts) do
+    table.insert(list, scriptPath)
+  end
+
+  return list
 end
 
 function FullModsManager:GetModList()

@@ -30,34 +30,42 @@ local VMName = (Server and "server") or "client"
 local OppositeVMName = (Server and "Client") or "Server"
 
 
-function ModLoader:Init()
-	self.SV = SavedVariables("ModLoader", {"DisabledMods"}, self)
-
-	self.SV:Load()
-
+function ModLoader:Init()  
   self:SetupConsoleCommands()
+  
+  if(SavedVariables) then
+    self.SV = SavedVariables("ModLoader", {"DisabledMods"}, self)
 
+	  self.SV:Load()
+	  
+	  if(Server) then
+	     self.SV.AutoSave = false
+	  end
+  end
+  
+  if(self.Embeded) then
+    
+    if(self.EmbededMods) then
+      
+	    for _,mod in ipairs(self.EmbededMods) do
+        self:AddModFromDir(unpack(mod))
+      end
+    end
+	end
+	
 	self:ScannForMods()
 	self:LoadMods()
-	
+
 	self:SetHooks()
 end
 
-function ModLoader:Init_EmbededMode(registeredMods)
+function ModLoader:SetEmbededMods(modsList)
+  
+  assert(type(modsList) == "table")
+  
   self.Embeded = true
   
-  self:SetupConsoleCommands()
-  self:SetHooks()
-
-  if(registeredMods) then
-    for _,mod in ipairs(registeredMods) do
-      self:AddModFromDir(unpack(mod))
-    end
-  end
-  
-  
-  self:ScannForMods()
-  self:LoadMods()
+  self.EmbededMods = modsList
 end
 
 function ModLoader:SetupConsoleCommands()
@@ -163,7 +171,7 @@ function ModLoader:SendModListResponse(client)
   if(client) then
     Server.ClientCommand(client, ConsoleCmd)
   else
-    Client.ConsoleCommand(ConsoleCmd)
+    Shared.ConsoleCommand(ConsoleCmd)
   end
 end
 
@@ -254,8 +262,11 @@ function ModLoader:DisableAllMods()
 end
 
 function ModLoader:ModEnableStateChanged(name)
+  
   if(self.SV) then
     self.SV:Save()
+  else
+    Client.SetOptionBoolean("ModLoader/Disabled/"..name, self.DisabledMods[name])
   end
 end
 
@@ -386,6 +397,16 @@ end
 
 function ModLoader:UILoadingStarted()
   self:DispatchModCallback("OnUILoading")
+end
+
+function ModLoader:OnClientLoadComplete(disconnectMsg)
+  	  
+	if(self.EmbededMods) then
+	    
+
+  end
+  
+  self:DispatchModCallback("OnClientLoadComplete", disconnectMsg)
 end
 
 function ModLoader:OnClientLuaFinished()

@@ -7,7 +7,7 @@ local EntryMetaTable = {
 }
 
 local function CreateModEntry(rootDirectory, name)
-	
+
 	local ModData = { 
 		Name = name,
 		InternalName = name:lower(),
@@ -93,12 +93,9 @@ function ModLoader:AddModFromDir(dirPath, name, optional, defaultDisabled)
   local name = mod.InternalName
     
   if(optional) then
-    if(defaultDisabled == nil) then
-      defaultDisabled = self.DisabledMods[name] == true
-    end
     
     //sigh GetOption stuff really needs tobe moved to shared.  just treat server mods as always enabled 
-    self.DisabledMods[name] = (Client or false)  and Client.GetOptionBoolean("ModLoader/Disabled/"..name, defaultDisabled)
+    self.DisabledMods[name] = self.DisabledMods[name] or false//Client.GetOptionBoolean("ModLoader/Disabled/"..name, defaultDisabled)
   else
     mod.Required = true
   end
@@ -111,12 +108,10 @@ function ModLoader:LoadModFromDir(dirPath, name, optional, defaultDisabled)
   
   local name = mod.InternalName
     
-  if(optional) then
-    if(defaultDisabled == nil) then
-      defaultDisabled = self.DisabledMods[name] == true
-    end
-    
-    self.DisabledMods[name] = Client.GetOptionBoolean("ModLoader/Disabled/"..name, defaultDisabled)
+  if(optional) then    
+    //force everything to enabled because we don't access to Client.GetOption functions and mods need tobe loaded before there added to the client library
+    //Client.GetOptionBoolean("ModLoader/Disabled/"..name, defaultDisabled)
+    self.DisabledMods[name] = self.DisabledMods[name] or false
   else
     mod.Required = true
   end
@@ -131,10 +126,6 @@ function ModLoader:LoadModFromDir(dirPath, name, optional, defaultDisabled)
       self.OrderedActiveMods[#self.OrderedActiveMods+1] = mod:Load() and mod
     end
   end
-end
-
-function ModLoader:ModEnableStateChanged(name)
-  Client.SetOptionBoolean("ModLoader/Disabled/"..name, self.DisabledMods[name])
 end
 
 local RequiredFieldList ={

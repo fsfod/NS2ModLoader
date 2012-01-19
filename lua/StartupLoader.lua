@@ -7,16 +7,35 @@ if(not StartupLoader) then
   StartupLoader = {
     Active = false,
    
-    ReducedLuaList = {},
+    ReducedLuaList = {
+      "lua/Globals.lua",
+      "lua/MainMenu.lua",
+      "lua/GUIManager.lua",
+    },
     
     FullLoadFiles = {
       "lua/Client.lua",
     }
+    
+    
   }
+  
+  StartupLoader.IsMainVM = decoda_name == "Main"
 else
   if(StartupLoader.Active) then
     StartupLoader:ClearHooks()
   end
+end
+
+function StartupLoader:ActivateEmbededMode()
+  
+  if(self.Active) then
+      Shared.Message("StartupLoader is already active")
+    return
+  end
+  
+  //we defer all our work til our LoadComplete hook is called since mod loader needs access to the Client.GetOption functions 
+  self.EmbededMode = true
 end
 
 function StartupLoader:Activate()
@@ -26,38 +45,33 @@ function StartupLoader:Activate()
     return
   end
 
+  if(self.IsMainVM) then
+    self:Activate_MainVMMode()
+  else
+    self:Activate_ClientVMMode()
+  end
+
+end
+
+function StartupLoader:Activate_MainVMMode()
+  
   self.gRenderCamera = Client.CreateRenderCamera()
-
-  ClassHooker:HookFunction("Client", "Connect", self, "LoadFullGameCode")
-
-  ClassHooker:HookFunction("Client", "StartServer", self, "LoadFullGameCode")
+  
+  self:SetHooks()
 
   for i,script in ipairs(self.ReducedLuaList) do
     Script.Load(script)
   end
 
-  self:SetHooks()
+
+  ClassHooker:OnLuaFullyLoaded()
 
   ModLoader:UILoadingStarted()
-
-  if(GUIMenuManager) then
-    GUIMenuManager:ShowMenu()
-  end
   
   self.Active = true
 end
 
-function StartupLoader:LoadFullGameCode()
-
-  if(not self.Active) then
-    return
-  end
-
-   Client.DestroyRenderCamera(self.gRenderCamera)
-
-  self:ClearHooks()
-
-  self.Active = false
+function StartupLoader:Activate_ClientVMMode()
 
   for i,script in ipairs(self.FullLoadFiles) do
     Script.Load(script)
@@ -69,6 +83,58 @@ function StartupLoader:LoadFullGameCode()
     ModLoader:OnClientLuaFinished()
   end
 end
+
+Event.Hook("LoadComplete", function(errorMsg) StartupLoader:LoadComplete(errorMsg) end)
+
+function StartupLoader:LoadComplete(errorMsg)
+
+  self.LoadCompleted = true
+
+  //ClassHooker:HookFunction("Client", "Connect", self, "LoadFullGameCode", InstantHookFlag)
+  //ClassHooker:HookFunction("Client", "StartServer", self, "LoadFullGameCode", InstantHookFlag) 
+
+  //Not making Cleint.GetOption functions available at startup was such a terrible
+  if(false and self.EmbededMode) then
+    
+    ModLoader:Init()  
+    
+    if(self.MainVM) then
+      self:Activate_MainVMMode()
+    else
+      self:Activate_ClientVMMode()
+    end
+  end
+
+
+  if(ModLoader) then
+    ModLoader:OnClientLoadComplete(errorMsg)
+  end
+
+  if(self.IsMainVM and GUIMenuManager) then
+
+    MenuMenu_PlayMusic("Main Menu")
+    MenuManager.SetMenuCinematic("cinematics/main_menu.cinematic")
+    
+    MainMenu_Open() //GUIMenuManager:ShowMenu()
+  end
+end
+
+/*
+function StartupLoader:LoadFullGameCode()
+
+
+  if(not self.Active) then
+    return
+  end
+
+  Client.DestroyRenderCamera(self.gRenderCamera)
+
+  self:ClearHooks()
+
+  self.Active = false
+
+end
+*/
 
 function StartupLoader:SetReducedLuaList(list)
   assert(type(list) == "table")
@@ -82,27 +148,26 @@ function StartupLoader:AddReducedLuaScript(scriptPath)
   table.insert(self.ReducedLuaList, scriptPath)
 end
 
+
 function StartupLoader.OnUpdateRender()
  
-   local cullingMode = RenderCamera.CullingMode_Occlusion
-
-   local gRenderCamera = StartupLoader.gRenderCamera
-
-   local camera = MenuManager.GetCinematicCamera()
-
-    if(camera ~= false) then
+  local renderCamera = StartupLoader.gRenderCamera
+  
+  local cullingMode = RenderCamera.CullingMode_Occlusion
+  local camera      = MenuManager.GetCinematicCamera()
+  
+  if camera ~= false then
+  
+      renderCamera:SetCoords( camera:GetCoords() )
+      renderCamera:SetFov( camera:GetFov() )
+      renderCamera:SetNearPlane( 0.01 )
+      renderCamera:SetFarPlane( 10000.0 )
+      renderCamera:SetCullingMode(cullingMode)
+      Client.SetRenderCamera(renderCamera)
       
-       gRenderCamera:SetCoords( camera:GetCoords() )
-       gRenderCamera:SetFov( camera:GetFov() )
-       gRenderCamera:SetNearPlane( 0.01 )
-       gRenderCamera:SetFarPlane( 10000.0 )
-       gRenderCamera:SetCullingMode(cullingMode)
-       
-       Client.SetRenderCamera(gRenderCamera)
-   else
-       Client.SetRenderCamera(nil)
-   end
-   
+  else
+      Client.SetRenderCamera(nil)
+  end
 
 end
 
@@ -118,7 +183,7 @@ function StartupLoader.SendCharacterEvent(...)
 end
 
 function StartupLoader.Update()
-   GUIMenuManager:Update()
+  GUIMenuManager:Update()
 end
 
 function StartupLoader:SetHooks()
