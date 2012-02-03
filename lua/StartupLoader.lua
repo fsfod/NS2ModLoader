@@ -11,6 +11,7 @@ if(not StartupLoader) then
       "lua/Globals.lua",
       "lua/MainMenu.lua",
       "lua/GUIManager.lua",
+      "lua/menu/MouseTracker.lua",
     },
     
     FullLoadFiles = {
@@ -63,7 +64,6 @@ function StartupLoader:Activate_MainVMMode()
     Script.Load(script)
   end
 
-
   ClassHooker:OnLuaFullyLoaded()
 
   ModLoader:UILoadingStarted()
@@ -90,52 +90,20 @@ function StartupLoader:LoadComplete(errorMsg)
 
   self.LoadCompleted = true
 
-  //ClassHooker:HookFunction("Client", "Connect", self, "LoadFullGameCode", InstantHookFlag)
-  //ClassHooker:HookFunction("Client", "StartServer", self, "LoadFullGameCode", InstantHookFlag) 
-
-  //Not making Cleint.GetOption functions available at startup was such a terrible
-  if(false and self.EmbededMode) then
-    
-    ModLoader:Init()  
-    
-    if(self.MainVM) then
-      self:Activate_MainVMMode()
-    else
-      self:Activate_ClientVMMode()
-    end
-  end
-
   ClassHooker:ClientLoadComplete()
 
   if(ModLoader) then
     ModLoader:OnClientLoadComplete(errorMsg)
   end
 
-  if(self.IsMainVM and GUIMenuManager) then
-
-    MenuMenu_PlayMusic("Main Menu")
-    MenuManager.SetMenuCinematic("cinematics/main_menu.cinematic")
-    
-    MainMenu_Open() //GUIMenuManager:ShowMenu()
+  if(self.StartupCompleteCallback) then
+    self.StartupCompleteCallback(errorMsg)
   end
 end
 
-/*
-function StartupLoader:LoadFullGameCode()
-
-
-  if(not self.Active) then
-    return
-  end
-
-  Client.DestroyRenderCamera(self.gRenderCamera)
-
-  self:ClearHooks()
-
-  self.Active = false
-
+function StartupLoader.DefaultCompleteCallback()
+  
 end
-*/
 
 function StartupLoader:SetReducedLuaList(list)
   assert(type(list) == "table")
@@ -176,15 +144,27 @@ function StartupLoader.OnSendKeyEvent(key, down)
 
   local eventHandled, isRepeat = InputKeyHelper:PreProcessKeyEvent(key, down)
 
-  return eventHandled or GUIMenuManager:SendKeyEvent(key, down, isRepeat)
+  if(not eventHandled and GUIMenuManager) then
+    eventHandled = GUIMenuManager:SendKeyEvent(key, down, isRepeat)
+  end
+
+  return eventHandled
 end
 
 function StartupLoader.SendCharacterEvent(...)
-  return GUIMenuManager:SendCharacterEvent(...)
+  
+  if(GUIMenuManager) then
+    return GUIMenuManager:SendCharacterEvent(...)
+  end
+  
+  return false
 end
 
 function StartupLoader.Update()
-  GUIMenuManager:Update()
+
+  if(GUIMenuManager) then
+    GUIMenuManager:Update()
+  end
 end
 
 function StartupLoader:SetHooks()

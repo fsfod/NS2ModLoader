@@ -216,8 +216,9 @@ function InputKeyHelper:PreProcessKeyEvent(key, down)
     KeyDown[key] = down
   end
 
-  local eventHandled, wheelDirection
 /*
+  local eventHandled, wheelDirection
+
   if(key == InputKey.MouseZ and false) then
     if(WheelMessages == nil) then
       WheelMessages = GetWheelMessages() or false

@@ -200,9 +200,14 @@ function ModEntry:CallModFunction(functionName, ...)
 end
 
 function ModEntry:CanLoadInVm(vm)
-	local validVM = self.Modinfo.ValidVM:lower()
+	local validVM = self.Modinfo.ValidVM
 
-	return validVM == "both" or validVM == vm
+
+  if(type(validVM) == "table") then
+    return validVM[vm] == true
+  else
+    return validVM == vm
+  end
 end
 
 local RequiredFieldList ={
@@ -222,6 +227,23 @@ local OptionalFieldList = {
 	MountSource = "boolean",
 	DLLModules = "table",
 	RequiresLuabind = "boolean",
+}
+
+local VMList = {
+  client = "client",
+  server = "server",
+  main = "main",
+
+  all = {
+    main = true,
+    client = true,
+    server = true,
+  },
+
+  clientserver = {
+    client = true,
+    server = true,
+  },
 }
 
 function ModEntry:ValidateModinfo() 
@@ -261,12 +283,18 @@ function ModEntry:ValidateModinfo()
 		end
 	end
 
-	local value = type(fieldlist.ValidVM) == "string" and fieldlist.ValidVM:lower()
+	local vmName = type(fieldlist.ValidVM) == "string" and VMList[fieldlist.ValidVM:lower()]
 
-	if(value and (value == "client" or value == "server" or value == "both")) then			
-		self.ValidVm = value
+	if(vmName) then	
+ 		
+		self.ValidVm = VMList[vmName]
+
+	elseif(type(fieldlist.ValidVM) == "table") then
+
+	  self.ValidVm = setmetatable(fieldlist.ValidVM, ChangeCaseMT)
+
 	else
-		self:PrintError("%s's modinfo ValidVM field needs tobe either \"client\", \"server\" or \"both\"", self.Name)
+		self:PrintError("%s's modinfo ValidVM field needs tobe either \"client\", \"server\" or \"main\" or a table with one of these values", self.Name)
 		LoadError = LoadError or LoadState.ModinfoFieldInvalid
 	end
 
@@ -399,11 +427,16 @@ function ModEntry:LoadMainScript()
     ChunkOrError = self.FileSource:LoadLuaFile(MainScriptFile)
   elseif(__ModPath) then
     local errorMsg
-    ChunkOrError, errorMsg = loadfile(__ModPath..JoinPaths(self.GameFileSystemPath, MainScript))
+    
+    local scriptPath = __ModPath..JoinPaths(self.GameFileSystemPath, MainScript)
+    
+    ChunkOrError, errorMsg = loadfile(scriptPath)
     
     --loadfile returns the function first and the error second. nil function = error set
     if(not ChunkOrError) then
       chunkOrError = errorMsg
+    else
+      Script.includes[string.lower(scriptPath)] = true
     end
   else
     assert(false, "no way to load MainScript")

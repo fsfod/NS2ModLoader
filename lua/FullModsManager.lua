@@ -110,32 +110,14 @@ function FullModsManager:ScannFullModArchives()
 			local success, archive = pcall(OpenArchive, path)
 	
 			if(success) then
+			  local luaDirectory = self:FindModLuaDirectory(archive)
 			  
-			  local name = StripExtension(fileName)
-			  
-			  if(archive:DirectoryExists("lua")) then
-			    self:TryReadArchiveLuaList(name, archive, "lua")
-			  else
-			    local dirlist = archive:FindDirectorys("", "")
-				  
-				  --if theres no luafiles in the root of the archive see if the archive contains a single directory that has the lua files
-				  if(#dirlist == 1) then
-				    if(archive:DirectoryExists(dirlist[1].."/lua")) then
-				      self:TryReadArchiveLuaList(name, archive, dirlist[1].."/lua")
-				    else
-				      
-				      //guessing a randomly named directory that should contain the lua files
-				      self:TryReadArchiveLuaList(name, archive, dirlist[1])
-				    end
-				    
-				  elseif(#dirlist == 0) then
-				    self:TryReadArchiveLuaList(name, archive, "")
-				  else
-            //we could get really silly here and search each of the directorys for a lua directory and/or .lua files
-            RawPrint("Skipping fullmod archive %s because it contains multiple root directorys", fileName) 
-				  end
-			  end
-
+        if(luaDirectory) then
+          self:TryReadArchiveLuaList(fileName, archive, luaDirectory)
+        else
+          //we could get really silly here and search each of the directorys for a lua directory and/or .lua files
+          RawPrint("Skipping fullmod archive %s because it contains multiple root directorys", fileName)
+        end
 			else
 				RawPrint("error while opening fullmod archive %s :\n%s", fileName, archive)
 			end
@@ -143,6 +125,37 @@ function FullModsManager:ScannFullModArchives()
 		
 	end
 		
+end
+
+function FullModsManager:FindModLuaDirectory(archive)
+
+  if(archive:DirectoryExists("lua")) then
+    return "lua/"
+  elseif(archive:DirectoryExists("mod/lua")) then
+    return "mod/lua"
+  end
+  
+  local dirlist = archive:FindDirectorys("", "")
+
+  if(#dirlist == 0) then
+    return ""
+  end
+
+  --if theres no luafiles in the root of the archive see if the archive contains a single directory that has the lua files
+  if(#dirlist ~= 1 and #dirlist > 0) then
+    return nil
+  end
+
+  local dirName = dirlist[1]
+  
+  if(archive:DirectoryExists(dirName.."/lua")) then
+    return dirName.."/lua"
+  elseif(archive:DirectoryExists(dirName.."mod/lua")) then
+    return dirName.."mod/lua"
+  else
+    //guessing a randomly named directory that should contain the lua files
+    return dirName
+  end
 end
 
 function FullModsManager:TryReadArchiveLuaList(name, archive, basePath)

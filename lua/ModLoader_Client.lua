@@ -25,7 +25,20 @@ Script.Load("lua/InputKeyHelper.lua")
 Script.Load("lua/ModLoader.lua")
 Script.Load("lua/ModEntry.lua")
 
+
 ModLoader:Init()
+
+StartupLoader.StartupCompleteCallback = function()
+
+  if(StartupLoader.IsMainVM) then
+    MenuMenu_PlayMusic("Main Menu")
+    MenuManager.SetMenuCinematic("cinematics/main_menu.cinematic")
+   
+    MainMenu_Open()
+  else
+    GameGUIManager:Activate()
+  end
+end
 
 StartupLoader:Activate()
 /*
