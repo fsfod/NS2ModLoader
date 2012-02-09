@@ -109,17 +109,26 @@ function DispatchBuilder:CreateDispatcher(hookData, isClassFunction)
 
 	if(Normal == 0) then
 		if(Raw == 1 and not Post) then
+		  
 			if(hookData.Class) then
 				return self:CreateSingleClassRaw(hookData)
 			else
 			  return self:CreateSingleRaw(hookData)
 			end
+			
 		elseif(Post == 1 and not Raw) then
 			return self:CreateSinglePost(hookData)
 		else
-		  if(hookData.ReplacedOrignal and not Post and not Raw) then
-		    local hook = hookData.ReplacedOrignal
-			 return function(...) return hook(...) end
+		  
+		  if(not Post and not Raw) then
+		    
+		    if(hookData.ReplacedOrignal) then
+		      local hook = hookData.ReplacedOrignal
+			   return function(...) return hook(...) end
+			  else
+			    return nil
+			  end
+			  
 			end
 		end
 	end
