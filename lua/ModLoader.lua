@@ -26,7 +26,7 @@ end
 
 ClassHooker:Mixin("ModLoader")
 
-local VMName = (Server and "server") or "client"
+local VMName = (StartupLoader and StartupLoader.IsMainVM and "main") or (Server and "server") or "client"
 local OppositeVMName = (Server and "Client") or "Server"
 
 

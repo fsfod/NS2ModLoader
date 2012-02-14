@@ -200,8 +200,8 @@ function ModEntry:CallModFunction(functionName, ...)
 end
 
 function ModEntry:CanLoadInVm(vm)
-	local validVM = self.Modinfo.ValidVM
-
+	
+  local validVM = self.ValidVm
 
   if(type(validVM) == "table") then
     return validVM[vm] == true
@@ -240,7 +240,12 @@ local VMList = {
     server = true,
   },
 
-  clientserver = {
+  main_client = {
+    main = true,
+    client = true,
+  },
+
+  client_server = {
     client = true,
     server = true,
   },
@@ -283,18 +288,20 @@ function ModEntry:ValidateModinfo()
 		end
 	end
 
-	local vmName = type(fieldlist.ValidVM) == "string" and VMList[fieldlist.ValidVM:lower()]
-
-	if(vmName) then	
- 		
-		self.ValidVm = VMList[vmName]
-
-	elseif(type(fieldlist.ValidVM) == "table") then
-
-	  self.ValidVm = setmetatable(fieldlist.ValidVM, ChangeCaseMT)
-
+	local vmNames = fieldlist.ValidVM
+  
+	if(type(vmNames) == "string") then	
+    vmNames = VMList[vmNames:lower()]
+	elseif(type(vmNames) == "table") then
+	  setmetatable(vmNames, ChangeCaseMT)
 	else
-		self:PrintError("%s's modinfo ValidVM field needs tobe either \"client\", \"server\" or \"main\" or a table with one of these values", self.Name)
+	  vmNames = nil
+  end
+
+	if(vmNames) then
+	  self.ValidVm = vmNames
+  else
+		self:PrintError("%s's modinfo ValidVM field needs tobe either \"client\", \"server\" or \"main\" or a table with one or more of these values", self.Name)
 		LoadError = LoadError or LoadState.ModinfoFieldInvalid
 	end
 
