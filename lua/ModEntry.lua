@@ -183,15 +183,21 @@ function ModEntry:CanLoad(vm)
 end
 
 function ModEntry:ModHasFunction(functionName)
-  return self.ModTable[functionName] ~= nil
+  return self.ModTable and self.ModTable[functionName] ~= nil
 end
 
 function ModEntry:CallModFunction(functionName, ...)
 
-  local Function = self.ModTable[functionName]
+  local ModTable = self.ModTable
+
+  if(not ModTable) then
+    return nil
+  end
+
+  local Function = ModTable[functionName]
 
   if(Function) then
-   local success, retvalue = xpcall2(Function, PrintStackTrace, self.ModTable, ...)
+   local success, retvalue = xpcall2(Function, PrintStackTrace, ModTable, ...)
    
    return success, retvalue
   end
@@ -213,10 +219,10 @@ end
 local RequiredFieldList ={
 	ValidVM = false,
 	EngineBuild = "number",
-	ModTableName = "string",
 }
 
 local OptionalFieldList = {
+  
 	SavedVaribles = "table",
 	Dependencies = "table",
 	MainScript = "string",
@@ -227,6 +233,7 @@ local OptionalFieldList = {
 	MountSource = "boolean",
 	DLLModules = "table",
 	RequiresLuabind = "boolean",
+	ModTableName = "string",
 }
 
 local VMList = {
@@ -305,7 +312,8 @@ function ModEntry:ValidateModinfo()
 		LoadError = LoadError or LoadState.ModinfoFieldInvalid
 	end
 
-  if(not LoadError) then 
+  //A ModTableName is only required if ScriptList or MainScript fields are set
+  if(not LoadError and fieldlist.ModTableName) then 
  
     if(_G[fieldlist.ModTableName]) then
       self:PrintError("%s's modinfo specifed a mod table name of %s but there is already a table named that in the global table", self.Name, fieldlist.ModTableName)
@@ -341,15 +349,18 @@ function ModEntry:Load()
 	  end
 	end
 	
-	if(_G[fields.ModTableName]) then
+	if(fields.ModTableName and _G[fields.ModTableName]) then
+	  
     self:PrintError("%s's modinfo specifed a mod table name of %s but there is already a table named that in the global table", self.Name, fieldlist.ModTableName)
     self.LoadState = LoadState.ModTableNameInUse
+    
    return false
   end
 
 	if(fields.ScriptOverrides) then
 
 		for replacing,replacer in pairs(fields.ScriptOverrides) do
+		  
 			if(type(replacing) == "string") then
 				--default to the same path as the replacing file if theres just a placeholder bool
 				replacer = (type(replacer) == "string" and replacer) or replacing
@@ -362,6 +373,7 @@ function ModEntry:Load()
 			else
 				RawPrint("Skipping entry that is a not a string in ScriptOverrides table of %s modinfo", self.Name)
 			end
+			
 		end
 	end
 
@@ -393,7 +405,7 @@ function ModEntry:Load()
 	end
 
   //if there was no ScriptList or the MainScript wasn't found in ScriptList we the run the MainScript/main loading phase now
-	if(mainScriptResult == nil) then
+	if(mainScriptResult == nil and fields.ModTableName) then
 		if(mainScript) then
 		  mainScriptResult = self:LoadMainScript()
 		else
