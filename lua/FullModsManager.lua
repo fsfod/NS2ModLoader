@@ -52,12 +52,14 @@ local modsFolderName = "FullMods"
 
 function FullModsManager:ScanForFullMods()
   
+  self.Mods = {}
+  
   local luaFiles = {}
 
   Shared.GetMatchingFileNames(modsFolderName.."/*.lua", true, luaFiles)
 
   local ModList = {}
-  self.Mods = ModList
+  //self.Mods = ModList
 
   local modNameStart = 2+#modsFolderName
 
@@ -73,13 +75,17 @@ function FullModsManager:ScanForFullMods()
         modFileList = {}
         ModList[modName] = modFileList
       end
- 
-      local normlizedPath = filePath:sub(nameEnd+1):lower()
-      
-      //just use the mod name  instead of just setting it to true so we can reuse the mod table later
-      modFileList[normlizedPath] = modName
+
+      table.insert(modFileList, filePath)
     end
   end
+  
+  local basePathStart = modsFolderName.."/"
+  
+  for name,luaFiles in pairs(ModList) do
+    self:CreateScriptList(name, basePathStart..name, luaFiles)
+  end
+  
   
   self:ScannFullModArchives()
 end
@@ -165,13 +171,18 @@ function FullModsManager:TryReadArchiveLuaList(name, archive, basePath)
   if(#fileList == 0) then
     return false
   end
+
+  if(not self:CreateScriptList(name, basePath, fileList)) then
+    return false
+  end
   
-  local modTable = {
-    Source = archive,
-    BasePath = basePath,
-    
-  } 
- 
+  self.ModSources[name] = archive
+  
+  return true
+end
+
+function FullModsManager:CreateScriptList(name, basePath, fileList)
+
   local scriptList = {}
   local basepathLength = #basePath
   
@@ -196,6 +207,7 @@ function FullModsManager:TryReadArchiveLuaList(name, archive, basePath)
       
       if(not luaIndex) then
         
+        //try to find a directory named "lua" in the path of the scripts to figure out the lua root directory
         for i,script in ipairs(fileList) do
           luaIndex = string.find(script, "%/lua%/")
           
@@ -217,6 +229,7 @@ function FullModsManager:TryReadArchiveLuaList(name, archive, basePath)
         
       else
         
+        //all the lua files are in the root directoy so assume thats its the lua directory so just comebine "lua/" and the filename togeather for the override paths
         for i,path in ipairs(fileList) do
           scriptList["lua/"..path:sub(basepathLength+2)] = path
         end
@@ -224,8 +237,6 @@ function FullModsManager:TryReadArchiveLuaList(name, archive, basePath)
       end
     end
   end
-  
-  self.ModSources[name] = archive
   
   self.Mods[name] = scriptList
   
@@ -325,6 +336,13 @@ function FullModsManager:GetModlistForConflict(scriptPath)
   return list
 end
 
+function FullModsManager:MountInNextClientVM()
+  
+	self.ClientVMIsListenServer = true
+
+	self.SV:Save()
+end
+
 function FullModsManager:MountEnabledMods()
   self:MountFileSets(self.EnabledMods)
 end
@@ -346,15 +364,15 @@ function FullModsManager:MountFileSets(modNames, overridePriorty)
           
           if(not self.ModSources[name]) then
             
-            LoadTracker:SetFileOverride(scriptPath, string.format("%s/%s/%s", modsFolderName, name, scriptPath))
+            LoadTracker:SetFileOverride(scriptPath, realpath)
             
           else
             
             LoadTracker:SetFileOverride(scriptPath, realpath, self.ModSources[name])
             
           end
-          
         end
+        
       end     
     end
   end
