@@ -33,30 +33,41 @@ local OppositeVMName = (Server and "Client") or "Server"
 function ModLoader:Init()  
   self:SetupConsoleCommands()
   
-  if(SavedVariables) then
-    self.SV = SavedVariables("ModLoader", {"DisabledMods"}, self)
-
-	  self.SV:Load()
-	  
-	  if(Server) then
-	     self.SV.AutoSave = false
+  if(not StartupLoader.ReloadInprogress) then
+  
+    if(SavedVariables) then
+      self.SV = SavedVariables("ModLoader", {"DisabledMods"}, self)
+    
+	    self.SV:Load()
+	    
+	    if(Server) then
+	       self.SV.AutoSave = false
+	    end
+    end
+    
+    if(self.Embeded) then
+      if(self.EmbededMods) then
+        
+	      for _,mod in ipairs(self.EmbededMods) do
+          self:AddModFromDir(unpack(mod))
+        end
+      end
 	  end
+	
+	  self:ScannForMods()
+	  self:LoadMods()
+	else
+	  self:ReloadLuaFiles()
   end
   
-  if(self.Embeded) then
-    
-    if(self.EmbededMods) then
-      
-	    for _,mod in ipairs(self.EmbededMods) do
-        self:AddModFromDir(unpack(mod))
-      end
-    end
-	end
-	
-	self:ScannForMods()
-	self:LoadMods()
-
 	self:SetHooks()
+end
+
+function ModLoader:ReloadLuaFiles()
+
+  for _,mod in ipairs(self.OrderedActiveMods) do
+    mod:ReloadLuaFiles()
+  end
 end
 
 function ModLoader:SetEmbededMods(modsList)
@@ -407,6 +418,15 @@ function ModLoader:OnClientLoadComplete(disconnectMsg)
   end
   
   self:DispatchModCallback("OnClientLoadComplete", disconnectMsg)
+end
+
+function ModLoader:OnLuaLoadFinished()
+
+  if(Server) then
+    self:OnServerLuaFinished()
+  else
+    self:OnClientLuaFinished()
+  end
 end
 
 function ModLoader:OnClientLuaFinished()

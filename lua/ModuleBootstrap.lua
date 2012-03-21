@@ -1,12 +1,15 @@
 //
 //   Created by:   fsfod
 //
+if(not ModuleBootstrap) then
 
 ModuleBootstrap = {
   LuabindLoaded = false,
   
   LuabindPath = false,
+  ModuleLoaded = {},
 }
+end
 
 function ModuleBootstrap:HasLuabind()
 
@@ -72,6 +75,10 @@ end
 
 function ModuleBootstrap:TryLoad(modulePath, EntryPoint)
   assert(type(modulePath) == "string" and modulePath ~= "")
+
+  if(self.ModuleLoaded[modulePath]) then
+    return true
+  end
   
   local ModuleEntryPoint, msg, where = package.loadlib(modulePath, EntryPoint)
   
@@ -80,6 +87,8 @@ function ModuleBootstrap:TryLoad(modulePath, EntryPoint)
 		 result, msg = pcall(ModuleEntryPoint)
 		 
 		if(result) then
+		  self.ModuleLoaded[modulePath] = ModuleEntryPoint
+		  
 		  return true, result
 		end
   end

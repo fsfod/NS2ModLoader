@@ -13,6 +13,7 @@ local function CreateModEntry(rootDirectory, name)
 		InternalName = name:lower(),
 		GameFileSystemPath = rootDirectory,
 		IsArchive = false,
+		LoadedScripts = {},
 	}
 
   ModData.Path = pathInSource or ""

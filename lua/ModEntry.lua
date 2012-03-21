@@ -47,6 +47,7 @@ function CreateModEntry(Source, dirname, IsArchive, pathInSource)
 		InternalName = dirname:lower(),
 		IsArchive = IsArchive,
 		LoadState = 0,
+		LoadedScripts = {},
 	}
 
 	local IsFromRootSource = IsRootFileSource and IsRootFileSource(Source)
@@ -420,7 +421,22 @@ function ModEntry:Load()
 	return mainScriptResult
 end
 
+function ModEntry:ReloadLuaFiles()
+
+  if(self.NoLuaReloading) then
+    return
+  end
+
+  for i,path in ipairs(self.LoadedScripts) do
+    self:RunLuaFile(path)
+  end
+end
+
 function ModEntry:RunLuaFile(path)
+	
+	if(not StartupLoader.ReloadInprogress) then
+	  table.insert(self.LoadedScripts, path)
+	end
 	
 	if(self.GameFileSystemPath) then
 		--just use script load for mods that can be accessed with the games own file system so they can be hot reloaded
@@ -481,6 +497,9 @@ function ModEntry:LoadMainScript()
 		--mark it for hotreloading
 		Script.includes[path] = true
 	end
+	
+  //make sure to record when we loaded the main script in the script loading order
+	table.insert(self.LoadedScripts, MainScript)
 	
 	return self:MainLoadPhase()
 end

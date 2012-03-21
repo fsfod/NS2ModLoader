@@ -2,9 +2,17 @@
 //   Created by:   fsfod
 //
 __ModFolderName = "ModLoader"
-
-Script.Load("lua/PathUtil.lua")
 Script.Load("lua/ModPathHelper.lua")
+
+if(StartupLoader) then
+  //StartupLoader is already loaded so a reload of lua code is happening
+  StartupLoader:ReloadStarted()
+
+
+  //clean up max's mess since theres no guard around MenuManager table declartion
+  //the old cinematic is not destroyed and also not rendered because theres no long a record of its camera
+  MenuManager.SetMenuCinematic(nil)
+end
 
 Script.Load("lua/ModuleBootstrap.lua")
 
@@ -14,8 +22,6 @@ if(not success) then
 	Shared.Message("Stopping because NS2_IO encounted error: "..(msg or "unknown error"))
  return
 end
-
-Script.Load("lua/StartupLoader.lua")
 
 Script.Load("lua/ModLoader_Shared.lua")
 
@@ -28,7 +34,12 @@ Script.Load("lua/ModEntry.lua")
 
 ModLoader:Init()
 
-StartupLoader.StartupCompleteCallback = function()
+StartupLoader.StartupCompleteCallback = function(msg, IsLuaReload)
+
+  if(IsLuaReload and StartupLoader.IsMainVM) then
+    MenuManager.SetMenuCinematic("cinematics/main_menu.cinematic")
+   return
+  end
 
   if(StartupLoader.IsMainVM) then
     MenuMenu_PlayMusic("Main Menu")
@@ -41,6 +52,7 @@ StartupLoader.StartupCompleteCallback = function()
 end
 
 StartupLoader:Activate()
+
 /*
 Script.Load("lua/Client.lua")
 ModLoader:OnClientLuaFinished()

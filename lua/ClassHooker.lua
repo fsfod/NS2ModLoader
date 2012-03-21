@@ -58,6 +58,8 @@ if(not FakeNil) then
 	FakeNil = {}
 end
 
+local Original_Class
+
 if(not ClassHooker) then
 
 ClassHooker = {
@@ -87,15 +89,17 @@ ClassHooker = {
 	}
 }
 
+  ClassHooker.Original_Class = _G.class
+  
+  _G.class = function(...) 
+  	return ClassHooker:Class_Hook(...)
+  end
 end
 
 Script.Load("lua/DispatchBuilder.lua")
 Script.Load("lua/LoadTracker.lua")
 
 ClassHooker.ClassObjectToName[Entity] = "Entity"
-
-local MarkerTable = {}
-
 
 local function EmptyFunction()
 end
@@ -203,6 +207,12 @@ SelfFuncHookHandleMT_PassHandle = {
 	__index = HookHandleFunctions,
 }
 
+if(not StartupLoader.ReloadInprogress) then
+  ClassHooker.HandleFuncs = {HookHandleMT, HookHandleMT_PassHandle, SelfFuncHookHandleMT, SelfFuncHookHandleMT_PassHandle}
+else
+  HookHandleMT, HookHandleMT_PassHandle, SelfFuncHookHandleMT, SelfFuncHookHandleMT_PassHandle = unpack(ClassHooker.HandleFuncs)
+end
+
 function ClassHooker:GetLuabindTables(class)
 	
 	local classtbl = self.LuabindTables[class]
@@ -279,23 +289,23 @@ function ClassHooker:CreateAndSetHook(hookData, funcname)
 	  Container = _G[hookData.Library]
 	  
 	  if(not Container) then
-		  error(string.format("ClassHooker:CreateAndSetHook Library \"%s\" does not exist%s", hookData.Library))
+		  error(string.format("Library \"%s\" does not exist%s", hookData.Library))
 	  end
 	end
 	
 	local OrignalFunction = Container[funcname]
 	
 	if(not OrignalFunction) then
-		error(string.format("ClassHooker:CreateAndSetHook function \"%s\" does not exist%s", funcname, (hookData.Library and "in library ") or ""))
+		error(string.format("function \"%s\" does not exist%s", funcname, (hookData.Library and "in library ") or ""))
 	end
 	
 	//we do allow the crazy edge case of table with a call __call operator but not userdata because it could be a class
 	if(type(OrignalFunction) ~= "function" and (type(OrignalFunction) ~= "table" or getmetable(OrignalFunction).__call == nil)) then
-		error(string.format("ClassHooker:CreateAndSetHook function \"%s\"%s is not valid hook target because its not a function", funcname, (hookData.Library and (" in library "..hookData.Library)) or ""))
+		error(string.format("function \"%s\"%s is not valid hook target because its not a function", funcname, (hookData.Library and (" in library "..hookData.Library)) or ""))
 	end
 
 	--don't write to Orignal if a hook has called BlockOrignalCall already which changes Orignal to an empty funtion
-	if(not hookData.Orignal) then
+	if(not hookData.Orignal and not hookData.RealOrignal) then
 		hookData.Orignal = OrignalFunction 
 	end
 
@@ -647,7 +657,7 @@ end
 function ClassHooker:ClassDeclaredCallback(classname, FuncOrSelf, callbackFuncName)
 
 	if(self:IsUnsafeToModify(classname)) then
-		error(string.format("ClassHooker:ClassDeclaredCallback '%s'",classname))
+		error(string.format("ClassHooker:ClassDeclaredCallback '%s' has already been defined",classname))
 	end
 
 	if(not self.ClassDeclaredCb[classname]) then
@@ -680,22 +690,9 @@ function ClassHooker:ClassStage2_Hook(classname, baseClassObject)
 end
 
 
-
-local reg = debug.getregistry()
-
-
-
-local Original_Class = _G.class
-
-
-_G.class = function(...) 
-	return ClassHooker:Class_Hook(...)
-end
-
-
 function ClassHooker:Class_Hook(classname)
 	
-	local stage2 = Original_Class(classname)
+	local stage2 = self.Original_Class(classname)
 		
   local mt = getmetatable(_G[classname])
   local call = mt.__call
@@ -817,7 +814,27 @@ function ClassHooker:OnLuaFullyLoaded()
 			RawPrint("ClassHooker: Skipping hook for function \"%s\" because it cannot be found", funcName)
 		end
 	end
-		
+end
+
+function ClassHooker:LuaReloadStarted()
+  self.MainLuaLoadingFinished = false
+end
+
+function ClassHooker:LuaReloadComplete()
+  
+  self.MainLuaLoadingFinished = true
+
+  for funcName,hooktbl in pairs(self.FunctionHooks) do
+		if(_G[funcName]) then
+			  local success, msg = pcall(self.CreateAndSetHook, self, hooktbl, funcName, true)
+
+			  if(not success) then
+			    RawPrint("ClassHooker: Failed to reapply hook ", msg)
+			  end
+		else
+			RawPrint("ClassHooker: Skipped reapplying hook for function \"%s\" because it cannot be found", funcName)
+		end
+	end
 end
 
 function ClassHooker:ClientLoadComplete()

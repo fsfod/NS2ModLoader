@@ -15,10 +15,8 @@ if(not StartupLoader) then
     },
     
     FullLoadFiles = {
-      "lua/Client.lua",
-    }
-    
-    
+      (Client and "lua/Client.lua") or "lua/Server.lua",
+    },
   }
   
   StartupLoader.IsMainVM = decoda_name == "Main"
@@ -28,6 +26,44 @@ else
   end
 end
 
+function StartupLoader:ReloadStarted()
+  assert(not self.ReloadInprogress)
+  self.ReloadInprogress = true
+
+  ClassHooker:LuaReloadStarted()
+  LoadTracker:LuaReloadStarted()
+  
+  //hooks get cleared on a reload
+  if(self.IsMainVM) then
+  //  self:SetHooks()
+  end
+end
+
+
+function StartupLoader:FinishReload()
+
+  assert(self.ReloadInprogress)
+
+  if(self.IsMainVM) then
+    for i,script in ipairs(self.ReducedLuaList) do
+      Script.Load(script)
+    end
+  else
+    
+    for i,script in ipairs(self.FullLoadFiles) do
+      Script.Load(script)
+    end
+  end
+
+  ClassHooker:LuaReloadComplete()
+
+  if(self.StartupCompleteCallback) then
+    self.StartupCompleteCallback("", true)
+  end
+
+  self.ReloadInprogress = false
+end
+
 function StartupLoader:ActivateEmbededMode()
   
   if(self.Active) then
@@ -35,21 +71,24 @@ function StartupLoader:ActivateEmbededMode()
     return
   end
   
-  //we defer all our work til our LoadComplete hook is called since mod loader needs access to the Client.GetOption functions 
   self.EmbededMode = true
 end
 
 function StartupLoader:Activate()
 
   if(self.Active) then
+    if(self.ReloadInprogress) then
+      self:FinishReload()
+    else
       Shared.Message("StartupLoader is already active")
-    return
+    end
+   return
   end
 
   if(self.IsMainVM) then
     self:Activate_MainVMMode()
   else
-    self:Activate_ClientVMMode()
+    self:Activate_NormalVMMode()
   end
 
 end
@@ -71,7 +110,7 @@ function StartupLoader:Activate_MainVMMode()
   self.Active = true
 end
 
-function StartupLoader:Activate_ClientVMMode()
+function StartupLoader:Activate_NormalVMMode()
 
   for i,script in ipairs(self.FullLoadFiles) do
     Script.Load(script)
@@ -80,11 +119,13 @@ function StartupLoader:Activate_ClientVMMode()
   ClassHooker:OnLuaFullyLoaded()
 
   if(ModLoader) then
-    ModLoader:OnClientLuaFinished()
+    ModLoader:OnLuaLoadFinished()
   end
 end
 
-Event.Hook("LoadComplete", function(errorMsg) StartupLoader:LoadComplete(errorMsg) end)
+if(not Server) then
+  Event.Hook("LoadComplete", function(errorMsg) StartupLoader:LoadComplete(errorMsg) end)
+end
 
 function StartupLoader:LoadComplete(errorMsg)
 
@@ -102,7 +143,6 @@ function StartupLoader:LoadComplete(errorMsg)
 end
 
 function StartupLoader.DefaultCompleteCallback()
-  
 end
 
 function StartupLoader:SetReducedLuaList(list)
@@ -116,7 +156,6 @@ function StartupLoader:AddReducedLuaScript(scriptPath)
 
   table.insert(self.ReducedLuaList, scriptPath)
 end
-
 
 function StartupLoader.OnUpdateRender()
  
@@ -176,6 +215,7 @@ function StartupLoader:SetHooks()
     Event.Hook("SendCharacterEvent", self.SendCharacterEvent)
   end
 end
+
 
 function StartupLoader:ClearHooks()
 

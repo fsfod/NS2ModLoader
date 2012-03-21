@@ -2,6 +2,8 @@
 //   Created by:   fsfod
 //
 
+local HotReload = LoadTracker
+
 if(not LoadTracker) then
   LoadTracker = {
   	LoadStack = {},
@@ -38,6 +40,10 @@ if(not LoadTracker) then
 
 end
 
+function LoadTracker:LuaReloadStarted()
+  self.LoadedScripts = {}
+end
+
 function LoadTracker:ScriptLoadStart(normalizedsPath, unnormalizedsPath)
 	table.insert(self.LoadStack, normalizedsPath)
 	
@@ -49,7 +55,7 @@ function LoadTracker:ScriptLoadStart(normalizedsPath, unnormalizedsPath)
 		
 		if(FileOverride) then
 			if(type(FileOverride) ~= "table") then
-			 return FileOverride
+			  return FileOverride
 			else
 				RunScriptFromSource(FileOverride[1], FileOverride[2])
 			 return false
@@ -190,20 +196,24 @@ function LoadTracker:CheckInject(className, mapname)
   end
 end
 
---Hook Shared.LinkClassToMap so we know when we can insert any hooks for a class
-local OrginalLinkClassToMap = Shared.LinkClassToMap
-
-Shared.LinkClassToMap = function(...)
- 
-  local classname, entityname = ...
+if(not HotReload) then
   
-  --let the orignal function spit out an error if we don't have the correct args
-  if(classname and entityname) then
-    ///LoadTracker:CheckInject(...)
-	  ClassHooker:LinkClassToMap(...)
+  --Hook Shared.LinkClassToMap so we know when we can insert any hooks for a class
+  local OrginalLinkClassToMap = Shared.LinkClassToMap
+  
+  Shared.LinkClassToMap = function(...)
+   
+    local classname, entityname = ...
+    
+    --let the orignal function spit out an error if we don't have the correct args
+    if(classname and entityname) then
+      ///LoadTracker:CheckInject(...)
+  	  ClassHooker:LinkClassToMap(...)
+    end
+  	
+  	OrginalLinkClassToMap(...)
   end
-	
-	OrginalLinkClassToMap(...)
+
 end
 
 function LoadTracker:GetCurrentLoadingFile()
