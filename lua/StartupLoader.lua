@@ -121,6 +121,8 @@ function StartupLoader:Activate_NormalVMMode()
   if(ModLoader) then
     ModLoader:OnLuaLoadFinished()
   end
+  
+  self.Active = true
 end
 
 if(not Server) then
