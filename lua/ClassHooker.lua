@@ -255,6 +255,31 @@ function ClassHooker:PropergateHookToSubClass(class, funcName, hook, oldFunc)
 	end
 end
 
+local function CheckSetOrignal(hookData, OrignalFunction)
+  
+  --don't write to Orignal if a hook has called BlockOrignalCall already which changes Orignal to an empty funtion
+	if(not hookData.Orignal) then
+		hookData.Orignal = OrignalFunction
+	end
+
+	if(not StartupLoader.ReloadInprogress) then
+	  --we have this so we have a second copy for when a hook disable calling the orignal by replacing Orignal with a dummy function through BlockCallOr
+	  hookData.RealOrignal = OrignalFunction
+	 return
+  end
+  
+  //update hookData.Orignal if its not set to a replacer or blocker hook function
+  if(hookData.Orignal == hookData.RealOrignal) then
+    hookData.Orignal = OrignalFunction
+  end
+  
+  hookData.RealOrignal = OrignalFunction
+
+	if(hookData.ReplacedOrignal) then
+	 // hookData.ReplacedOrignal = OrignalFunction
+  end
+end
+
 function ClassHooker:RuntimeHookClass(className, funcname, hookData)
 	
 	local classTable = _G[className]
@@ -266,15 +291,10 @@ function ClassHooker:RuntimeHookClass(className, funcname, hookData)
 	end
 	
 	--don't write to Orignal if a hook has called BlockOrignalCall already which changes Orignal to an empty funtion
-	if(not hookData.Orignal) then
-		hookData.Orignal = OrignalFunction 
-	end
+	CheckSetOrignal(hookData, OrignalFunction)
 	
 	hookData.Class = className
 	hookData.Name = funcname
-	
-	--we have this so we have a second copy for when a hook disable calling the orignal by replacing Orignal with a dummy function through BlockCallOrignal
-	hookData.RealOrignal = OrignalFunction
 
 	hookData.Dispatcher	= DispatchBuilder:CreateDispatcher(hookData, true)
 	
@@ -305,12 +325,7 @@ function ClassHooker:CreateAndSetHook(hookData, funcname)
 	end
 
 	--don't write to Orignal if a hook has called BlockOrignalCall already which changes Orignal to an empty funtion
-	if(not hookData.Orignal and not hookData.RealOrignal) then
-		hookData.Orignal = OrignalFunction 
-	end
-
-	--we have this so we have a second copy for when a hook disable calling the orignal by replacing Orignal with a dummy function through BlockCallOrignal
-	hookData.RealOrignal = OrignalFunction
+	CheckSetOrignal(hookData, OrignalFunction)
 
 	hookData.Dispatcher	= DispatchBuilder:CreateDispatcher(hookData)
   hookData.Name = funcname
@@ -325,14 +340,8 @@ function ClassHooker:CreateAndSetClassHook(hookData, class, funcname)
 	if(not OrignalFunction) then
 		error(string.format("ClassHooker:CreateAndSetClassHook function \"%s\" in class %s does not exist", funcname, class))
 	end
-	
-	--don't write to Orignal if a hook has called BlockOrignalCall already which changes Orignal to an empty funtion
-	if(not hookData.Orignal) then
-		hookData.Orignal = OrignalFunction 
-	end
 
-	--we have this so we have a second copy for when a hook disable calling the orignal by replacing Orignal with a dummy function through BlockCallOrignal
-	hookData.RealOrignal = OrignalFunction
+	CheckSetOrignal(hookData, OrignalFunction)
 
   hookData.Dispatcher = DispatchBuilder:CreateDispatcher(hookData, true)
 
@@ -604,6 +613,16 @@ function ClassHooker:RemoveHook(hook)
 
   self:UpdateDispatcher(hookData)
 
+  if(not hookData.Dispatcher) then
+    if(hookData.Class) then
+      self.ClassFunctionHooks[hookData.Class][hookData.Name] = nil
+    elseif(hookData.Library) then
+      self.LibaryHooks[hookData.Library][hookData.Name] = nil
+    else
+      self.FunctionHooks[hookData.Name] = nil
+    end
+  end
+
 	return true
 end
 
@@ -651,7 +670,11 @@ function ClassHooker:UpdateDispatcher(hookData)
     containerTable[hookData.Name] = newDispatcher
   end
   
-  hookData.Dispatcher = newDispatcher
+  if(newDispatcher ~= hookData.RealOrignal) then
+    hookData.Dispatcher = newDispatcher
+  else
+    hookData.Dispatcher = nil
+  end
 end
 
 function ClassHooker:ClassDeclaredCallback(classname, FuncOrSelf, callbackFuncName)
@@ -826,11 +849,11 @@ function ClassHooker:LuaReloadComplete()
 
   for funcName,hooktbl in pairs(self.FunctionHooks) do
 		if(_G[funcName]) then
-			  local success, msg = pcall(self.CreateAndSetHook, self, hooktbl, funcName, true)
+		  local success, msg = pcall(self.CreateAndSetHook, self, hooktbl, funcName, true)
 
-			  if(not success) then
-			    RawPrint("ClassHooker: Failed to reapply hook ", msg)
-			  end
+			if(not success) then
+			  RawPrint("ClassHooker: Failed to reapply hook ", msg)
+			end
 		else
 			RawPrint("ClassHooker: Skipped reapplying hook for function \"%s\" because it cannot be found", funcName)
 		end

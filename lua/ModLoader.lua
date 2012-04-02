@@ -12,6 +12,11 @@ if(not ModLoader) then
 		OrderedActiveMods = {},
 		ActiveMods = {},
 		Mods = {},
+
+    //A true value means load the mod even if its set to disabled 
+    //A false value means don't load the mod even its enable
+    //if the entry for the mod is nil in the table then just use the value in DisabledMods
+		ModLoadOverrides = {},
 	}
 	
 	//ActiveMods = {}
@@ -461,7 +466,9 @@ function ModLoader:LoadMods()
   local modList = {}
 
   for modname,entry in pairs(self.Mods) do
-		if entry:LoadModinfo() and not self.DisabledMods[modname] and entry:CanLoadInVm(VMName) then
+    local override = self.ModLoadOverrides[modname]
+    
+		if entry:LoadModinfo() and (not self.DisabledMods[modname] or override) and override ~= false and entry:CanLoadInVm(VMName) then
 
 		  if(entry.Dependencies) then
 		    for name,_ in pairs(entry.Dependencies) do
@@ -489,7 +496,7 @@ function ModLoader:LoadMods()
 end
 
 function ModLoader:SortAndLoadModList(list, loadResult)
- 
+
   table.sort(list)
 
   local ordered = self.OrderedActiveMods

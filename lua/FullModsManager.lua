@@ -21,7 +21,7 @@ end
 
 function FullModsManager:Init()
   
-  if(not SavedVariables) then
+  if(not SavedVariables or self.Mods) then
     return
   end
   

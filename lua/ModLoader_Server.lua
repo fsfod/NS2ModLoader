@@ -6,6 +6,11 @@ __ModFolderName = "ModLoader"
 Script.Load("lua/PathUtil.lua")
 Script.Load("lua/ModPathHelper.lua")
 
+if(StartupLoader) then
+  //StartupLoader is already loaded so a reload of lua code is happening
+  StartupLoader:ReloadStarted()
+end
+
 Script.Load("lua/ModuleBootstrap.lua")
 
 local success, msg = ModuleBootstrap:LoadModule("NS2_IO", true)

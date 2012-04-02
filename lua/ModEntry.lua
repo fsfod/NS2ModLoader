@@ -380,9 +380,9 @@ function ModEntry:Load()
 
   if(fields.MountSource and NS2_IO) then
     if(self.GameFileSystemPath) then
-      NS2_IO.MountSource(self.FileSource:CreateChildSource(self.GameFileSystemPath))
+      NS2_IO.MountSourcePathOnce(self.FileSource:CreateChildSource(self.GameFileSystemPath))
     else
-      NS2_IO.MountSource(self.FileSource)
+      NS2_IO.MountSourcePathOnce(self.FileSource)
     end
   end
 
@@ -522,7 +522,7 @@ function ModEntry:InjectFunctions()
 
   ModTable.LoadScriptAfter = function(selfArg, scriptPath, afterScriptPath) 
     afterScriptPath = (type(afterScriptPath) == "string" and afterScriptPath) or scriptPath
-				
+
 		if(self.GameFileSystemPath) then
 	    LoadTracker:LoadScriptAfter(scriptPath, JoinPaths(self.GameFileSystemPath, afterScriptPath))
 		else
@@ -594,6 +594,8 @@ function ModEntry:MainLoadPhase()
 		if(sucess) then
 			self.SavedVars = sv
 			self.SavedVars:Load()
+			
+			self.ModTable.SavedVaribles = sv
 		else
 			RawPrint("Error while setting up saved varibles for mod %s: %s", self.Name, sv)
 		end

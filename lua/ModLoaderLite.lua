@@ -109,9 +109,7 @@ function ModLoader:LoadModFromDir(dirPath, name, optional, defaultDisabled)
   
   local name = mod.InternalName
     
-  if(optional) then    
-    //force everything to enabled because we don't access to Client.GetOption functions and mods need tobe loaded before there added to the client library
-    //Client.GetOptionBoolean("ModLoader/Disabled/"..name, defaultDisabled)
+  if(optional) then
     self.DisabledMods[name] = self.DisabledMods[name] or false
   else
     mod.Required = true
@@ -186,25 +184,4 @@ function ModEntry:LoadMainScript()
 	return self:MainLoadPhase()
 end
 
-end
-
-function ModEntry:MainLoadPhase()
-  
-  local fields = self.Modinfo
-	local ModTable = _G[fields.ModTableName]
-
-	if(not ModTable) then
-	  self.LoadState = LoadState.ModTableMissing
-
-		Print(self.Name.." modtable could not be found after loading")
-	 return false
-	end
-	
-	self.ModTable = ModTable
-	
-	self:InjectFunctions()
-	
-	self:CallModFunction("OnLoad")
-  
-  return true
 end

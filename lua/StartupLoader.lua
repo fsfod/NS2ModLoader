@@ -218,7 +218,6 @@ function StartupLoader:SetHooks()
   end
 end
 
-
 function StartupLoader:ClearHooks()
 
   Event.RemoveHook("UpdateRender", self.OnUpdateRender)
@@ -230,6 +229,6 @@ function StartupLoader:ClearHooks()
 end
 
 --reset the hooks if were hot reloading
-if(StartupLoader.Active) then
+if(StartupLoader.Active and StartupLoader.IsMainVM) then
   StartupLoader:SetHooks()
 end
