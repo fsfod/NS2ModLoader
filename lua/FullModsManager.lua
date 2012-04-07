@@ -400,6 +400,10 @@ function FullModsManager:DisableMod(name)
   self.CurrentConflicts = self:CheckConflicts(self.EnabledMods)
 end
 
+function FullModsManager:IsModValidAndLoaded(modName)
+  return self.EnabledMods[modName]
+end
+
 function FullModsManager:GetModInfo(modName)
 
   local conflicts = self.CurrentConflicts
