@@ -718,31 +718,13 @@ function ClassHooker:Class_Hook(classname)
 	local stage2 = self.Original_Class(classname)
 		
   local mt = getmetatable(_G[classname])
-  local call = mt.__call
 
   if(not self.ChildClass[classname]) then
     self.ChildClass[classname] = {}
   end
-
-	--make sure we don't inject our __call function more than once(like when a file is hot reloaded) 
-  if(not mt.CHInit) then		
-	  mt.CHInit = call
-	else
-	  //reuse our captured constructor
-	  call = mt.CHInit
-	end
 	
 	self.ClassObjectToName[ _G[classname]] = classname
   
-  mt.__call = function(rep,...)
-	  local ret = call(rep)
-	  
-	  if(ret.__init) then
-	  	ret:__init(...)
-	  end
-	  
-	 return ret
-	end
 
 	return 	function(classObject) 
 						stage2(classObject)

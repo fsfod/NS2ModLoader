@@ -66,6 +66,23 @@ function CreateModEntry(Source, dirname, IsArchive, pathInSource)
 	return setmetatable(ModData, EntryMetaTable)
 end
 
+function CreateModEntry_Basic(rootDirectory, name)
+
+	local ModData = { 
+		Name = name,
+		InternalName = name:lower(),
+		GameFileSystemPath = rootDirectory,
+		IsArchive = false,
+		LoadState = 0,
+		LoadedScripts = {},
+	}
+
+  ModData.Path = rootDirectory
+
+
+	return setmetatable(ModData, EntryMetaTable)
+end
+
 local lowerCache = setmetatable({}, {__mode = "k"})
 
 local ChangeCaseMT = {

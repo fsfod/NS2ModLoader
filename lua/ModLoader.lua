@@ -349,6 +349,11 @@ end
 
 function ModLoader:ScannForMods()
 
+  if(not NS2_IO) then
+    self:ScannForMods_Basic()
+   return
+  end
+  
 	for dirname,Source in pairs(NS2_IO.FindDirectorys("/Mods/","")) do
  		
 		local modinfopath = string.format("/Mods/%s/modinfo.lua", dirname)
@@ -369,24 +374,116 @@ function ModLoader:ScannForMods()
 			local success, archiveOrError = pcall(NS2_IO.OpenArchive, Source, "/Mods/"..fileName)
 	
 			if(success) then
-				if(archiveOrError:FileExists("modinfo.lua")) then
-					self:AddModEntry(archiveOrError, StripExtension(fileName), true)
-				else
-				  local dirlist = archiveOrError:FindDirectorys("", "")
-				  local modname = dirlist[1]
-				  --if theres no modinfo.lua in the root of the archive see if the archive contains a single directory that has a modinfo.lua in it
-				  if(#dirlist == 1 and archiveOrError:FileExists(modname.."/modinfo.lua")) then
-				    self:AddModEntry(archiveOrError, modname, true, modname.."/")
-				  else
-				    RawPrint("Skiping mod archive \"%s\" that has no modinfo.lua in it", fileName)
-				  end
-				end
+				self:TryAddArchiveMod(archiveOrError, fileName)
 			else
 				RawPrint("error while opening mod archive %s :\n%s", fileName, archiveOrError)
 			end
 		end
 		
 	end
+end
+
+function ModLoader:TryAddArchiveMod(archive, fileName)
+  
+  if(archive:FileExists("modinfo.lua")) then
+		self:AddModEntry(archive, StripExtension(fileName), true)
+	else
+	  local dirlist = archive:FindDirectorys("", "")
+	  local modname = dirlist[1]
+	  --if theres no modinfo.lua in the root of the archive see if the archive contains a single directory that has a modinfo.lua in it
+	  if(#dirlist == 1 and archive:FileExists(modname.."/modinfo.lua")) then
+	    self:AddModEntry(archive, modname, true, modname.."/")
+	  else
+	    RawPrint("Skiping mod archive \"%s\" that has no modinfo.lua in it", fileName)
+	  end
+	end
+end
+
+function ModLoader:ScannForMods_Basic()
+  
+  local matchingFiles = {}
+  
+  Shared.GetMatchingFileNames("Mods/modinfo.lua", true, matchingFiles)
+	
+	for _,path in ipairs(matchingFiles) do
+	  local dirName = string.match(path, "Mods/([^%/]+)/modinfo.lua")
+	  
+		if(dirName) then
+			self:AddModFromDir("Mods/"..dirName, dirName, true)
+		else
+			Shared.Message("ModLoader.ScannForMods: not a valid mod "..path)
+		end
+	end
+	
+		//7zip archive system is not loaded
+	if(not OpenArchive) then
+	  return
+	end
+	
+  local SupportedArchives = {
+		  [".zip"] = true,
+		  [".rar"] = true,
+		  [".7ip"] = true,
+	}
+	
+	matchingFiles = {}
+	
+	Shared.GetMatchingFileNames("/Mods/*.*", false, matchingFiles)
+
+	--scan for mods are contained in archives that are in our "Mods" folder
+	for _,path in ipairs(matchingFiles) do	
+	  local fileName = GetFileNameFromPath(path)
+	
+		if(SupportedArchives[(GetExtension(fileName) or ""):lower()]) then
+			local success, archiveOrError = pcall(OpenArchive, path)
+	
+			if(success) then
+			  self:TryAddArchiveMod(archiveOrError, fileName)
+			else
+				RawPrint("error while opening mod archive %s :\n%s", fileName, archiveOrError)
+			end
+		end
+	end
+	
+end
+
+function ModLoader:AddModFromDir(dirPath, name, optional, defaultDisabled)
+  local mod = CreateModEntry_Basic(dirPath, name)
+  
+  local name = mod.InternalName
+    
+  if(optional) then
+    
+    //sigh GetOption stuff really needs tobe moved to shared.  just treat server mods as always enabled 
+    self.DisabledMods[name] = self.DisabledMods[name] or false//Client.GetOptionBoolean("ModLoader/Disabled/"..name, defaultDisabled)
+  else
+    mod.Required = true
+  end
+  
+  self.Mods[name] = mod
+end
+
+function ModLoader:LoadModFromDir(dirPath, name, optional, defaultDisabled)
+  local mod = CreateModEntry(dirPath, name)
+  
+  local name = mod.InternalName
+    
+  if(optional) then
+    self.DisabledMods[name] = self.DisabledMods[name] or false
+  else
+    mod.Required = true
+  end
+  
+  if(mod:LoadModinfo()) then
+    self.Mods[name] = mod
+    
+    if(not self.DisabledMods[name]) then
+			if(optional) then
+				Shared.Message("Loading mod "..mod.Name)
+			end
+      self.OrderedActiveMods[#self.OrderedActiveMods+1] = mod:Load() and mod
+    end
+  end
 end
 
 function ModLoader:AddModEntry(source, modname, isArchive, pathInSource)
