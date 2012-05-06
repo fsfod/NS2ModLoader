@@ -2,6 +2,15 @@
 //   Created by:   fsfod
 //
 
+/*
+Notes 
+
+Mods are kept in an load ordered list each event is dispatched to mods in the same order of the list
+
+Mods with no dependencies are first sorted by name then loaded in that order this is more for conistentcy than tobe used by mods
+
+*/
+
 local HotReload = false
 
 local Mods, ActiveMods, OrderedActiveMods
@@ -539,6 +548,23 @@ function ModLoader:OnServerLuaFinished()
 	self:DispatchModCallback("OnServerLuaFinished")
 end
 
+function ModLoader:InternalLoadMod(mod)
+  
+  if(mod:HasStartupErrors()) then
+    return false
+  end
+    
+  RawPrint("Loading mod: "..mod.Name)
+
+  if(not mod:Load()) then
+	  return false
+	end
+		  
+	self.OrderedActiveMods[#self.OrderedActiveMods+1] = mod
+
+  return true
+end
+
 function ModLoader:LoadMod(modName)
   
   local name = modName:lower()
@@ -568,18 +594,17 @@ function ModLoader:LoadMods()
 		if entry:LoadModinfo() and (not self.DisabledMods[modname] or override) and override ~= false and entry:CanLoadInVm(VMName) then
 
 		  if(entry.Dependencies) then
+		    local list = entry.Dependencies
+		  
 		    for name,_ in pairs(entry.Dependencies) do
-		      if(not Dependents[name]) then
-		        Dependents[name] = {}
-		      end
-		      
-		      Dependents[name][modname] = entry
+		      Dependents[name] = (Dependents[name] or 0)+1
+		      list[name] = self.Mods[name]
         end
-        
-        LoadableMods[modname] = entry
       else
-        modList[#modList+1] = modname   
-		  end
+        modList[#modList+1] = modname
+      end
+
+      LoadableMods[modname] = entry
 		end
 	end
 
@@ -599,145 +624,101 @@ function ModLoader:SortAndLoadModList(list, loadResult)
   local ordered = self.OrderedActiveMods
 
   for _,modname in pairs(list) do
-    local entry = self.Mods[modname]
-    
-    RawPrint("Loading mod: "..entry.Name)
-    
-    local loaded = entry:Load() 
-        
-	  if(loaded) then
-	    ordered[#ordered+1] = entry
-	  end
-	  
-	  loadResult[modname] = loaded
+	  loadResult[modname] = self:InternalLoadMod(self.Mods[modname]) 
   end
+end
+
+function ModLoader:ReportDependencieCycle(stack, mod)
+  
+  local cycleStart
+  
+  local modNames = {}
+  
+  for i, stackEntry in ipairs(stack) do
+    if(stackEntry == mod and not cycleStart) then
+      cycleStart = i
+    end
+
+    modNames[#modNames+1] = stackEntry.Name
+  end
+
+  local modListString = table.concat(modNames, ", ")
+
+  RawPrint("Error cycle in mod dependencies found for %s cycle mod is %s, load stack is %s", stack[1].Name, mod.Name, modListString)
 end
 
 function ModLoader:HandleModsDependencies(LoadableMods, Dependents, loadResults)
   
-  local MissingDependencies = {}
   local RootList = {}
-	
-	local PropagateUnloadable
 
-	PropagateUnloadable = function(modname, notFirst)
-		for name,mod in pairs(Dependents[modname]) do
-      mod:OnDependencyLoadError(modname)
-      LoadableMods[name] = nil
-     
-      if(Dependents[name]) then
-        PropagateUnloadable(name, true)
-      end
-    end
+  --build up a list of root nodes for our topological sort
+  --mods with dependencie cycles 
+  for modname,entry in pairs(LoadableMods) do
+    if not Dependents[modname] then
+		  RootList[modname] = entry
+		end
 	end
 
+  local stack = {}
 
-  for modname,list in pairs(Dependents) do
-    local RequiredMod = LoadableMods[modname]
+  local LoadModDependencies
+  
+  //Depth First traversal topological sorter loader
+  LoadModDependencies = function(mod)
     
-    if(not RequiredMod) then
-      //this mod has already been loaded successfuly so remove it from the graph
-      if(loadResults[modname]) then
+    if(mod:IsLoaded()) then
+      return true
+    end
+    
+    stack[#stack+1] = mod
+    
+    //check that we havn't been to this node already otherwise we have found a dependencie cycle
+    if(mod.Visited) then
+      self:ReportDependencieCycle(stack, mod)
+     return false
+    end
+    
+    mod.Visited = true
 
-        for dependentName,mod in pairs(list) do
+    local depFailed = false
+    
+    if(mod.Dependencies) then
+      //recurse call into our dependencies
+      for name,depMod in pairs(mod.Dependencies) do
+              
+        if(not depMod:IsLoaded()) then
           
-          local deps = mod.Dependencies
+          if(depFailed and Dependents[name] > 1) then
+            //need to decide if we should not load the rest of our dependencies if one failed to load
+          end
+          
+          if(depMod:HasStartupErrors() or not LoadModDependencies(depMod) and not depFailed) then
 
-          if(deps) then
-            //remove link to us
-            deps[modname] = nil
-
-            //if we were the last remaining dependency of this mod add it as a root node
-            if(not next(deps)) then
-              RootList[#RootList+1] = self.Mods[dependentName]
-              mod.Dependencies = false
-            end
+            mod:OnDependencyLoadError(name)
+            depFailed = name
           end
         end
-
-      else
-        --This dependency was missing or had load errors so mark all the dependents unloadable
-        PropagateUnloadable(modname)
       end
+    end
+    
+    stack[#stack] = nil
 
-      Dependents[modname] = nil
-    else
-      --if it has no Dependencies it must be a root node
-      if(RequiredMod.Dependencies == nil) then
-        RootList[#RootList+1] = RequiredMod
-      end
+    return not depFailed and self:InternalLoadMod(mod)
+  end
+  
+  for name,mod in pairs(RootList) do
+    LoadModDependencies(mod)
+  end
+
+  //find any unvisited mods that can only be stuck in a dependency cycle islands
+  //Note the node/mod that a graph starts at is random and theres no way to tell which node in the cycle is the start
+  //Each node in a cycle should get visited so a cycle should only get reported once
+  for name, mod in pairs(LoadableMods) do
+    if(not mod.Visited and mod.Dependencies) then
+      LoadModDependencies(mod)
     end
   end
 
-  local NodeList = {}
-  local OrderedActiveMods = self.OrderedActiveMods
-  
-  for modname,entry in pairs(LoadableMods) do
-		local DependentList = Dependents[modname]
-
-    if(DependentList) then
-      --clear out any dependent mods that aren't loadable anymore because they are missing a Dependencies
-      for name,mod in pairs(DependentList) do
-        if(not LoadableMods[name] and not loadResults[modname]) then
-          DependentList[name] = nil
-        end
-      end
-
-      --TODO handle when all dependents have become non loadable
-      entry.Dependents = DependentList
-    end
-
-    if DependentList or entry.Dependencies then
-     --build up a list of nodes for our topological sort
-		  NodeList[modname] = entry
-		end
-	end
-
-  local Sorted = {}
-  
-  while next(NodeList) or #RootList ~= 0 do
-    
-    if(#RootList == 0) then
-      error("circular mod dependency detected")
-    end
-    
-    --deque next root node
-    local node = table.remove(RootList, 1)
-    local modname = node.InternalName
-    
-    Sorted[#Sorted+1] = node
-
-    if(node.Dependents) then
-      for name,childnode in pairs(node.Dependents) do
-        local ParentList = childnode.Dependencies
-        
-        --remove the parent link to us
-        if(ParentList) then
-          ParentList[modname] = nil      
-        end
-        
-        --if the node has no more parent links add it to the root list
-        if(not ParentList or not next(ParentList)) then
-          table.insert(RootList, childnode)
-        end
-        
-        node.Dependents[name] = nil
-      end
-    end
-    
-    NodeList[modname] = nil
-  end
-
-  for _,entry in ipairs(Sorted) do 
-
-    if(not entry:IsLoaded() and not entry:HasStartupErrors()) then
-		  RawPrint("Loading mod: "..entry.Name)
-
-		  if(entry:Load()) then
-		    OrderedActiveMods[#OrderedActiveMods+1] = entry 
-		  end
-		end
-	end
 end
 
 if HotReload then
