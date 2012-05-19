@@ -11,7 +11,9 @@ if(StartupLoader) then
 
   //clean up max's mess since theres no guard around MenuManager table declartion
   //the old cinematic is not destroyed and also not rendered because theres no long a record of its camera
-  MenuManager.SetMenuCinematic(nil)
+  if(MenuManager) then
+    MenuManager.SetMenuCinematic(nil)
+  end
 end
 
 Script.Load("lua/ModuleBootstrap.lua")

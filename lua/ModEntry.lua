@@ -454,13 +454,17 @@ function ModEntry:RunLuaFile(path)
 	if(not StartupLoader.ReloadInprogress) then
 	  table.insert(self.LoadedScripts, path)
 	end
+
+  local success, result
 	
 	if(self.GameFileSystemPath) then
 		--just use script load for mods that can be accessed with the games own file system so they can be hot reloaded
-		return Script.Load(JoinPaths(self.GameFileSystemPath,path))
+		local success, result = SafeCall(Script.Load, JoinPaths(self.GameFileSystemPath,path))
+		
+		return success and result 
+	else
+		return SafeCall(RunScriptFromSource, self.FileSource, JoinPaths(self.Path, path))
 	end
-
-	return not RunScriptFromSource(self.FileSource, JoinPaths(self.Path, path))
 end
 
 function ModEntry:LoadMainScript()
