@@ -196,25 +196,6 @@ function LoadTracker:CheckInject(className, mapname)
   end
 end
 
-if(not HotReload) then
-  
-  --Hook Shared.LinkClassToMap so we know when we can insert any hooks for a class
-  local OrginalLinkClassToMap = Shared.LinkClassToMap
-  
-  Shared.LinkClassToMap = function(...)
-   
-    local classname, entityname = ...
-    
-    --let the orignal function spit out an error if we don't have the correct args
-    if(classname and entityname) then
-      ///LoadTracker:CheckInject(...)
-  	  ClassHooker:LinkClassToMap(...)
-    end
-  	
-  	OrginalLinkClassToMap(...)
-  end
-
-end
 
 function LoadTracker:GetCurrentLoadingFile()
 	return self.LoadStack[#self.LoadStack]

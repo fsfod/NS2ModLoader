@@ -60,7 +60,11 @@ end
 
 local Original_Class
 
-if(not ClassHooker) then
+local HotReload = ClassHooker
+
+local ReloadInprogress = HotReload ~= nil
+
+if(not HotReload) then
 
 ClassHooker = {
 	ClassObjectToName = {},
@@ -207,10 +211,10 @@ SelfFuncHookHandleMT_PassHandle = {
 	__index = HookHandleFunctions,
 }
 
-if(not StartupLoader.ReloadInprogress) then
-  ClassHooker.HandleFuncs = {HookHandleMT, HookHandleMT_PassHandle, SelfFuncHookHandleMT, SelfFuncHookHandleMT_PassHandle}
-else
+if(HotReload) then
   HookHandleMT, HookHandleMT_PassHandle, SelfFuncHookHandleMT, SelfFuncHookHandleMT_PassHandle = unpack(ClassHooker.HandleFuncs)
+else
+  ClassHooker.HandleFuncs = {HookHandleMT, HookHandleMT_PassHandle, SelfFuncHookHandleMT, SelfFuncHookHandleMT_PassHandle}
 end
 
 function ClassHooker:GetLuabindTables(class)
@@ -262,7 +266,7 @@ local function CheckSetOrignal(hookData, OrignalFunction)
 		hookData.Orignal = OrignalFunction
 	end
 
-	if(not StartupLoader.ReloadInprogress) then
+	if(not ReloadInprogress) then
 	  --we have this so we have a second copy for when a hook disable calling the orignal by replacing Orignal with a dummy function through BlockCallOr
 	  hookData.RealOrignal = OrignalFunction
 	 return
@@ -822,10 +826,13 @@ function ClassHooker:OnLuaFullyLoaded()
 end
 
 function ClassHooker:LuaReloadStarted()
+  ReloadInprogress = true
   self.MainLuaLoadingFinished = false
 end
 
 function ClassHooker:LuaReloadComplete()
+  
+  ReloadInprogress = false
   
   self.MainLuaLoadingFinished = true
 
@@ -1010,4 +1017,23 @@ function ClassHooker:Mixin(classTableOrName, IdString, noSelfCall)
 	for name,func in pairs(MixInList) do
 		classTableOrName[name] = func
 	end
+end
+
+
+if(not HotReload) then
+  --Hook Shared.LinkClassToMap so we know when we can insert any hooks for a class
+  local OrginalLinkClassToMap = Shared.LinkClassToMap
+  
+  Shared.LinkClassToMap = function(...)
+   
+    local classname, entityname = ...
+    
+    --let the orignal function spit out an error if we don't have the correct args
+    if(classname and entityname) then
+  	  ClassHooker:LinkClassToMap(...)
+    end
+  	
+  	OrginalLinkClassToMap(...)
+  end
+
 end
