@@ -61,8 +61,7 @@ end
 local Original_Class
 
 local HotReload = ClassHooker
-
-local ReloadInprogress = HotReload ~= nil
+local ReloadInprogress = false
 
 if(not HotReload) then
 
@@ -101,7 +100,6 @@ ClassHooker = {
 end
 
 Script.Load("lua/DispatchBuilder.lua")
-Script.Load("lua/LoadTracker.lua")
 
 ClassHooker.ClassObjectToName[Entity] = "Entity"
 
@@ -816,6 +814,11 @@ function ClassHooker:OnLuaFullyLoaded()
 	
 	self.MainLuaLoadingFinished = true
 	
+	if(ReloadInprogress) then
+	  self:LuaReloadComplete()
+	 return
+	end
+	
 	for funcName,hooktbl in pairs(self.FunctionHooks) do
 		if(_G[funcName]) then
 			self:CreateAndSetHook(hooktbl, funcName)
@@ -1036,4 +1039,6 @@ if(not HotReload) then
   	OrginalLinkClassToMap(...)
   end
 
+else
+  ClassHooker:LuaReloadStarted()
 end

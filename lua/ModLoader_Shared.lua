@@ -42,6 +42,8 @@ Script.Load("lua/ErrorHandling.lua")
 Script.Load("lua/PathUtil.lua")
 Script.Load("lua/EventUtil.lua")
 Script.Load("lua/ClassHooker.lua")
+Script.Load("lua/LoadTracker.lua")
+
 Script.Load("lua/CallbackHandler.lua")
 
 Script.Load("lua/SavedVariables.lua")
