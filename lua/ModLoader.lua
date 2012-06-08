@@ -211,8 +211,17 @@ function ModLoader:GetListOfActiveMods()
   return list
 end
 
-function ModLoader:IsModEnabled(name)
-  return not self.DisabledMods[name:lower()]
+function ModLoader:IsModEnabled(modName)
+  return not self:_IsModDisabled(modName:lower())
+end
+
+function ModLoader:_IsModDisabled(modName)
+  
+  if(self.ModLoadOverrides[modName] ~= nil) then
+    return not self.ModLoadOverrides[modName]
+  end
+  
+  return self.DisabledMods[modName] == true
 end
 
 function ModLoader:IsModActive(name)
@@ -232,14 +241,7 @@ function ModLoader:GetModInfo(name)
   
   local modentry = self.Mods[name]
   
-  local disabled = self.DisabledMods[name]
-  
-  if(disabled == nil) then
-    disabled = false
-  end
-  
-  
-  return disabled, modentry.Name, modentry.LoadState
+  return self:_IsModDisabled(name), modentry.Name, modentry.LoadState
 end
 
 function ModLoader:GetModList(justOptional)
@@ -260,7 +262,7 @@ function ModLoader:ListMods()
 	for name,mod in pairs(self.Mods) do
 		if(mod:HasStartupErrors()) then
 	    RawPrint("%s : Enabled but encountered fatal error while loading", name)
-		elseif(self.DisabledMods[name]) then
+		elseif(self:_IsModDisabled(name)) then
 			RawPrint("%s : Disabled%s", name, (mod:IsLoaded() and " but still loaded this session") or "")
 		else
 			RawPrint("%s : Enabled", name)
@@ -579,6 +581,14 @@ function ModLoader:LoadMod(modName)
   end
   
   
+end
+
+function ModLoader:SetModEnabledOverride(modname)
+  self.ModLoadOverrides[modname:lower()] = true
+end
+
+function ModLoader:SetModDisabledOverride(modname)
+  self.ModLoadOverrides[modname:lower()] = false
 end
 
 function ModLoader:LoadMods()
