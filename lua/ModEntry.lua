@@ -146,14 +146,14 @@ function ModEntry:LoadModinfo()
 
 	if(success == false) then
 	  self.LoadState = LoadState.ModinfoLoadError
-		self:PrintError("error while trying to read %s's modinfo file:\n%s", self.Name, errorMsg)
+		self:PrintError("while trying to read %s's modinfo file:\n%s", self.Name, errorMsg)
 	 return false
 	end
 
 	if(errorMsg) then
 	  self.LoadState = LoadState.ModinfoParseError
 
-		self:PrintError("error while parsing %s's modinfo file:\n%s", self.Name, errorMsg)
+		self:PrintError("while parsing %s's modinfo file:\n%s", self.Name, errorMsg)
 	 return false
 	end
 		
@@ -164,7 +164,7 @@ function ModEntry:LoadModinfo()
 		 
 	if(not success) then
 	  self.LoadState = LoadState.ModinfoRunError
-		self:PrintError("error while running %s's modinfo file:\n%s", self.Name, msg)	
+		self:PrintError("while running %s's modinfo file:\n%s", self.Name, msg)	
 		
 		return false
 	end
@@ -475,7 +475,7 @@ function ModEntry:LoadMainScript()
     local MainScriptFile = JoinPaths(self.Path, MainScript)
 
     if(not self.FileSource:FileExists(MainScriptFile)) then
-      self:PrintError("Error %s's MainScript file does not exist", self.Name)
+      self:PrintError("%s's MainScript file does not exist", self.Name)
       self.LoadState = LoadState.MainScriptMissing
      return false
     end
@@ -499,7 +499,7 @@ function ModEntry:LoadMainScript()
   end
 
 	if(type(ChunkOrError) == "string") then
-		self:PrintError("Error while loading the main script of mod %s:%s", self.Name, ChunkOrError)
+		self:PrintError("while loading the main script of mod %s:%s", self.Name, ChunkOrError)
 		self.LoadState = LoadState.MainScriptLoadError
 	 return false
 	end
@@ -508,7 +508,7 @@ function ModEntry:LoadMainScript()
 	local success = xpcall(ChunkOrError, SetStackTrace)
 
 	if(not success) then
-		self:PrintError("Error while running the main script of mod %s :%s", self.Name, StackTrace)
+		self:PrintError("while running the main script of mod %s :%s", self.Name, StackTrace)
 		self.LoadState = LoadState.MainScriptRunError
 	 return false
 	end
@@ -599,7 +599,7 @@ function ModEntry:MainLoadPhase()
 	if(not ModTable) then
 	  self.LoadState = LoadState.ModTableMissing
 	  
-		self:PrintError(self.Name.." modtable could not be found after loading")
+		self:PrintError("%s's modtable could not be found after loading", self.Name)
 	 return false
 	end
 	
@@ -628,7 +628,7 @@ function ModEntry:MainLoadPhase()
 end
 
 function ModEntry:OnDependencyMissing(modname)
-  self:PrintError("Cannot load mod %s because its missing dependency %s", self.Name, modname)
+  self:PrintError("cannot load mod %s because its missing dependency %s", self.Name, modname)
 
   if(self.LoadState >= 0) then
     self.LoadState = LoadState.DependencyMissing
@@ -640,13 +640,21 @@ function ModEntry:OnDependencyLoadError(modname)
   if(self.LoadState >= 0) then
     self.LoadState = LoadState.DependencyHasError
     
-    self:PrintError("Cannot load mod %s because its dependency \'%s\' had errors while starting up", self.Name, modname)
+    self:PrintError("cannot load mod %s because its dependency \'%s\' had errors while starting up", self.Name, modname)
   end
 end
 
-function ModEntry:PrintError(...)
+function ModEntry:PrintError(fmt, ...)
+  
+  local msg = fmt
+  
   --TODO add recording of these errors
-  RawPrint(...)
+  
+  if(fmt and type(fmt) == "string" and select("#", ...) ~= 0) then
+    RawPrint("ModLoader: Error ", string.format(fmt, ...))
+  else
+    RawPrint("ModLoader: Error ", fmt, ...)
+  end
 end
 
 function ModEntry:OnClientLuaFinished()
