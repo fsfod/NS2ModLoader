@@ -36,7 +36,7 @@ InputKeyHelper.KeyList = {
 	"LeftBracket",
 	"RightBracket",
 	"Return",
-	"LeftControl",
+	"Control",//LeftControl
 	"A",
 	"S",
 	"D",
@@ -49,7 +49,7 @@ InputKeyHelper.KeyList = {
 	"Semicolon",
 	"Apostrophe",
 	"Grave",
-	"LeftShift",
+	"Shift",//LeftShift
 	"Backslash",
 	"Z",
 	"X",
@@ -61,8 +61,8 @@ InputKeyHelper.KeyList = {
 	"Comma",
 	"Period",
 	"Slash",
-	"RightShift",
-	"LeftAlt",
+	"Shift",//RightShift
+	"Alt",//LeftAlt
 	"Space",
 	"Capital",
 	"F1",
@@ -100,9 +100,9 @@ InputKeyHelper.KeyList = {
 	"NumPadPeriod",
 	"NumPadDivide",
 	"NumPadMultiply",
-	"RightControl",
+	"Control",//RightControl
 	"PrintScreen",
-	"RightAlt",
+	"Alt",//RightAlt
 	"Pause",
 	"Break",
 	"Home",
@@ -204,7 +204,8 @@ local NoUpEvent = {
   [InputKey.MouseY] = true,
 }
 
-local KeyDown = {}
+local KeyDown = InputKeyHelper.KeyDown or {}
+InputKeyHelper.KeyDown = KeyDown
 
 function InputKeyHelper:PreProcessKeyEvent(key, down)
   PROFILE("KeyDown:SendKeyEvent")
@@ -249,12 +250,51 @@ end
 
 Event.Hook("UpdateClient", function() InputKeyHelper:Update() end)
 
+InputKeyHelper.ModiferKeys = {
+  [InputKey.LeftControl] = "Control",
+  [InputKey.RightControl] = "Control",
+  
+  [InputKey.LeftShift] = "Shift",
+  [InputKey.RightShift] = "Shift",
+}
+
+InputKeyHelper.ModiferReverseLookup = {
+  Control = {InputKey.LeftControl, InputKey.RightControl},
+  Shift = {InputKey.LeftShift, InputKey.RightShift},
+  Alt = {InputKey.LeftAlt, InputKey.RightAlt},
+}
+
 function InputKeyHelper:IsCtlDown()
   return KeyDown[InputKey.LeftControl] == true or KeyDown[InputKey.RightControl] == true
 end
 
 function InputKeyHelper:IsShiftDown()
-  return KeyDown[InputKey.LeftShift] == true or KeyDown[InputKey.RightShift] == true
+  return KeyDown[InputKey.LeftShift] == true or KeyDown == true
+end
+
+function InputKeyHelper:IsModiferDown(name)
+  
+  local keyEntry = self.ModiferReverseLookup[name]
+  
+  if(type(keyEntry) == "table") then
+    
+    for i,key in ipairs(keyEntry) do
+      
+      if(KeyDown[key]) then
+        return true
+      end
+    end
+    
+    return false
+  else
+    return KeyDown[keyEntry]
+  end
+  
+  
+end
+
+function InputKeyHelper:IsKeyDown(key)
+  return KeyDown[self.ModiferKeys[key] or key] == true
 end
 
 InputKeyHelper.ControlPasteChar = 22

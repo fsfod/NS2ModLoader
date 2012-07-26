@@ -1,7 +1,7 @@
 //
 //   Created by:   fsfod
 //
-__ModFolderName = "ModLoader"
+
 Script.Load("lua/ModPathHelper.lua")
 
 if(StartupLoader) then
