@@ -70,7 +70,7 @@ ClassHooker = {
 	ClassObjectToName = {},
 
 	ChildClass = {Entity = {}},
-	LinkedClasss = {},
+	LinkedClass = {},
 	
 	ClassDeclaredCb = {},
 	ClassFunctionHooks = {},
@@ -354,6 +354,10 @@ function ClassHooker:CreateAndSetClassHook(hookData, class, funcname)
 	if(not OrignalFunction) then
 		error(string.format("ClassHooker:CreateAndSetClassHook function \"%s\" in class %s does not exist", funcname, class))
 	end
+  
+  if(hookData.Dispatcher == OrignalFunction) then
+    OrignalFunction = hookData.RealOrignal
+  end
 
 	CheckSetOrignal(hookData, OrignalFunction)
 
@@ -713,7 +717,7 @@ function ClassHooker:ClassDeclaredCallback(classname, FuncOrSelf, callbackFuncNa
 end
 
 function ClassHooker:IsUnsafeToModify(classname)
-	return self.LinkedClasss[classname] and #self.ChildClass[classname] ~= 0
+	return self.LinkedClass[classname] and #self.ChildClass[classname] ~= 0
 end
 
 function ClassHooker:ClassStage2_Hook(classname, baseClassObject)
@@ -753,7 +757,7 @@ end
 function ClassHooker:LinkClassToMap(classname, entityname, networkVars)
 
 	if(entityname) then
-		self.LinkedClasss[classname] = true
+		self.LinkedClass[classname] = true
 	end
 	
 	self:OnClassFullyDefined(classname, networkVars)
@@ -767,7 +771,9 @@ function ClassHooker:ScriptLoadFinished(scriptPath)
 		for _,ObjectName in ipairs(objectlist) do
 
 		  if(self.ClassFunctionHooks[ObjectName]) then
-			  self:OnClassFullyDefined(ObjectName)
+        if(not self.LinkedClass[ObjectName]) then
+          self:OnClassFullyDefined(ObjectName)
+        end
 			else
 				-- just sanity check that there are any hooks set
 				if(self.LibaryHooks[ObjectName]) then
@@ -821,7 +827,7 @@ function ClassHooker:OnClassFullyDefined(classname, networkVars)
 	if(self.ClassFunctionHooks[classname]) then
 		--Create and insert all the hooks registered for this class
 		for funcName,hooktbl in pairs(self.ClassFunctionHooks[classname]) do
-			self:CreateAndSetClassHook(hooktbl, classname, funcName)
+      self:CreateAndSetClassHook(hooktbl, classname, funcName)
 		end
 	end
 end
@@ -847,6 +853,7 @@ end
 function ClassHooker:LuaReloadStarted()
   ReloadInprogress = true
   self.MainLuaLoadingFinished = false
+  self.LinkedClass = {}
 end
 
 function ClassHooker:LuaReloadComplete()
