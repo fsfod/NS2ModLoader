@@ -596,7 +596,7 @@ function ModLoader:LoadMods()
   local LoadableMods = {}
   --a hashtable The key is the name of mod. the value a keyvalue list of mods that depend on the mod
   local Dependents = {}
-  local modList = {}
+  local noDepList = {}
 
   for modname,entry in pairs(self.Mods) do
     local override = self.ModLoadOverrides[modname]
@@ -611,16 +611,43 @@ function ModLoader:LoadMods()
 		      list[name] = self.Mods[name]
         end
       else
-        modList[#modList+1] = modname
+        //defer adding the mod to normal list to the OptionalDependencies loop
+        noDepList[modname] = true
       end
 
       LoadableMods[modname] = entry
 		end
 	end
 
+	for modName, modEntry in pairs(LoadableMods) do
+    
+    if(modEntry.OptionalDependencies) then
+      local list = modEntry.Dependencies
+      local addedDeps = false
+      
+      for name,_ in pairs(modEntry.OptionalDependencies) do
+        if(LoadableMods[name]) then
+          Dependents[name] = (Dependents[name] or 0)+1
+          addedDeps = true
+
+          if(not list) then
+            list = {}
+            modEntry.Dependencies = list
+          end
+          list[name] = LoadableMods[name]
+        end
+      end
+      
+      if(addedDeps) then
+        noDepList[modName] = nil
+      end
+    end
+  end
+	
+
   local loadResult = {}
 
-	self:SortAndLoadModList(modList, loadResult)
+	self:SortAndLoadModList(noDepList, loadResult)
 
   if(next(Dependents)) then
     self:HandleModsDependencies(LoadableMods, Dependents, loadResult)
@@ -629,11 +656,17 @@ end
 
 function ModLoader:SortAndLoadModList(list, loadResult)
 
-  table.sort(list)
+  local arrayList = {}
+  
+  for modname,_ in pairs(list) do
+    arrayList[#arrayList+1] = modname
+  end
+  
+  table.sort(arrayList)
 
   local ordered = self.OrderedActiveMods
 
-  for _,modname in pairs(list) do
+  for _,modname in pairs(arrayList) do
 	  loadResult[modname] = self:InternalLoadMod(self.Mods[modname]) 
   end
 end
