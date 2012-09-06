@@ -102,7 +102,7 @@ function PlayerEvents:OnClassChanged()
     end
  
     local isSpectator = player:isa("Spectator")
-    local team = player:GetTeamNumber()
+    local team = player.GetTeamNumber and player:GetTeamNumber()
  
     if(isSpectator and not self.IsSpectator and team ~= kTeamReadyRoom and team == self.CurrentTeam) then
        self:PrintDebug("PlayerDied")
@@ -136,7 +136,7 @@ if(not HotReload) then
   			PlayerEvents:OnClassChanged()
   			
   		  CurrentClass = player:GetClassName()
-  		elseif(player:GetTeamNumber() ~= CurrentTeam) then
+  		elseif(player.GetTeamNumber and player:GetTeamNumber() ~= CurrentTeam) then
   		  PlayerEvents:OnTeamChanged()
   		  
   		  CurrentTeam = player:GetTeamNumber()

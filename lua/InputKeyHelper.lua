@@ -269,7 +269,7 @@ function InputKeyHelper:IsCtlDown()
 end
 
 function InputKeyHelper:IsShiftDown()
-  return KeyDown[InputKey.LeftShift] == true or KeyDown == true
+  return KeyDown[InputKey.LeftShift] == true or KeyDown[InputKey.RightShift] == true
 end
 
 function InputKeyHelper:IsModiferDown(name)
