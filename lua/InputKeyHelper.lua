@@ -354,6 +354,43 @@ MoveEnum = {
 	"TextChat",
 }
 
+if(Shared.GetBuildNumber() == 221) then
+ 
+ MoveEnum = {
+  "PrimaryAttack",
+  "SecondaryAttack",
+  "NextWeapon",
+  "PrevWeapon",
+  "Reload",
+  "Use",
+  "Jump",
+  "Crouch",
+  "MovementModifier",
+  "Minimap",
+  "Buy",
+  "ToggleFlashlight",
+  "Weapon1",
+  "Weapon2",
+  "Weapon3",
+  "Weapon4",
+  "Weapon5",
+  "Drop",
+  "Taunt",
+  "Scoreboard",
+  "Exit",
+  "ScrollForward",
+  "ScrollLeft",
+  "ScrollRight",
+  "ScrollBackward",
+  "ToggleRequest",
+  "ToggleSayings",
+  "ToggleVoteMenu",
+  "TextChat",
+  "TeamChat",
+  "ShowMap",
+  "ReadyRoom"
+}
+end
 InputBitToName = {}
 
 for _,inputname in ipairs(MoveEnum) do

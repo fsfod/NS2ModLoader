@@ -131,6 +131,14 @@ end
 
 function StartupLoader:LoadComplete(errorMsg)
 
+  if(Shared.GetBuildNumber() == 221) then
+    Script.Load("lua/Render.lua")
+    
+    self.gRenderCamera:SetRenderSetup("renderer/Deferred.render_setup") 
+    
+    Render_SyncRenderOptions()
+  end
+  
   self.LoadCompleted = true
 
   ClassHooker:ClientLoadComplete()
