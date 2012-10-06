@@ -29,7 +29,7 @@ if(not LoadTracker) then
   	
   	local ret
   	
-  	if(NewPath) then
+  	if(NewPath and NewPath ~= "") then
   		ret = Script_Load(NewPath)
   	end
   	
