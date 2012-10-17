@@ -9,6 +9,7 @@ if(not StartupLoader) then
    
     ReducedLuaList = {
       "lua/Globals.lua",
+      "lua/ConfigFileUtility.lua",
       "lua/MainMenu.lua",
       "lua/GUIManager.lua",
       "lua/menu/MouseTracker.lua",
@@ -131,7 +132,7 @@ end
 
 function StartupLoader:LoadComplete(errorMsg)
 
-  if(Shared.GetBuildNumber() == 221) then
+  if(self.IsMainVM) then
     Script.Load("lua/Render.lua")
     
     self.gRenderCamera:SetRenderSetup("renderer/Deferred.render_setup") 

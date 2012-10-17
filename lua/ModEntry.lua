@@ -139,9 +139,10 @@ function ModEntry:LoadModinfo()
     //if LoadLuaFile threw an error the second return value from pcall will be the error 
     if(not success) then
       errorMsg = chunk
-    end 
-  elseif(__ModPath) then
-    chunk, errorMsg = loadfile(string.format("%s/modinfo.lua", JoinPaths(__ModPath, self.GameFileSystemPath)))
+    end
+  else//if(__ModPath) then
+    chunk, errorMsg = self:LoadLuaFile("modinfo.lua")
+    //chunk, errorMsg = loadfile(string.format("%s/modinfo.lua", JoinPaths(__ModPath, self.GameFileSystemPath)))
   end
 
 	if(success == false) then
@@ -449,6 +450,21 @@ function ModEntry:ReloadLuaFiles()
   end
 end
 
+//Loads a lua file to a chunk but doesn't run it
+function ModEntry:LoadLuaFile(path)
+
+  local file, err = io.open(JoinPaths(self.GameFileSystemPath, path))
+ 
+  if not file then
+    return nil, err
+  end
+
+  local chunk = file:read("*all")
+  io.close(file)
+  
+  return loadstring(chunk)
+end
+
 function ModEntry:RunLuaFile(path)
 	
 	if(not StartupLoader.ReloadInprogress) then
@@ -481,21 +497,15 @@ function ModEntry:LoadMainScript()
     end
     
     ChunkOrError = self.FileSource:LoadLuaFile(MainScriptFile)
-  elseif(__ModPath) then
-    local errorMsg
-    
-    local scriptPath = __ModPath..JoinPaths(self.GameFileSystemPath, MainScript)
-    
-    ChunkOrError, errorMsg = loadfile(scriptPath)
+  else
+    ChunkOrError, errorMsg = self:LoadLuaFile(MainScript)
     
     --loadfile returns the function first and the error second. nil function = error set
     if(not ChunkOrError) then
       chunkOrError = errorMsg
     else
-      Script.includes[string.lower(scriptPath)] = true
+      Script.includes[string.lower(JoinPaths(self.GameFileSystemPath, MainScript))] = true
     end
-  else
-    assert(false, "no way to load MainScript")
   end
 
 	if(type(ChunkOrError) == "string") then

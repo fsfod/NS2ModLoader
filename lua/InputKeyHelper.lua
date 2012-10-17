@@ -318,45 +318,6 @@ function InputKeyHelper:ShouldIgnoreChar(character)
 end
 
 MoveEnum = {
-	"PrimaryAttack",
-	"SecondaryAttack",
-	"NextWeapon",
-	"PrevWeapon",
-	"Reload",
-	"Use",
-	"Jump",
-	"Crouch",
-	"MovementModifier",
-	"ShowMap",
-	"Buy",
-	"ToggleFlashlight",
-	"Weapon1",
-	"Weapon2",
-	"Weapon3",
-	"Weapon4",
-	"Weapon5",
-  
-	"ScrollBackward",
-	"ScrollRight",
-	"ScrollLeft",
-	"ScrollForward",
-	"Exit",
-	
-	"Drop",
-	"Taunt",
-	"Scoreboard",
-	
-	"ToggleSayings1",
-	"ToggleSayings2",
-	"ToggleVoteMenu",
-
-	"TeamChat",
-	"TextChat",
-}
-
-if(Shared.GetBuildNumber() == 221) then
- 
- MoveEnum = {
   "PrimaryAttack",
   "SecondaryAttack",
   "NextWeapon",
@@ -390,7 +351,21 @@ if(Shared.GetBuildNumber() == 221) then
   "ShowMap",
   "ReadyRoom"
 }
+
+/*
+local names = {}
+
+for inputname,value in pairs(Move) do
+  names[#names+1] = inputname
 end
+
+table.sort(names, function(a,b) return Move[a] < Move[b] end)
+
+for i,v in ipairs(names) do
+  Shared.Message(v)
+end
+*/
+
 InputBitToName = {}
 
 for _,inputname in ipairs(MoveEnum) do
