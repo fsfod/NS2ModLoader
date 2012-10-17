@@ -4,7 +4,7 @@ if(SavedVariables and type(SavedVariables) == "userdata") then
   return
 end
 
-local basePath = "user://SavedVariables/"
+local basePath = "config://SavedVariables/"
 
 SavedVariables = {}
 
@@ -273,7 +273,7 @@ function SavedVariables:Save()
       file:write(fieldName, " = {\n")
         WriteTable(file, value)
       file:write("}\n")
-    else
+    elseif(value ~= nil) then
       file:write(fieldName, " = ", "\n")
       WriteValue(file, value)
     end
