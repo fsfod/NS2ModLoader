@@ -138,6 +138,7 @@ function StartupLoader:LoadComplete(errorMsg)
     self.gRenderCamera:SetRenderSetup("renderer/Deferred.render_setup") 
     
     Render_SyncRenderOptions()
+    OptionsDialogUI_SyncSoundVolumes()
   end
   
   self.LoadCompleted = true

@@ -453,7 +453,8 @@ end
 //Loads a lua file to a chunk but doesn't run it
 function ModEntry:LoadLuaFile(path)
 
-  local file, err = io.open(JoinPaths(self.GameFileSystemPath, path))
+  path = JoinPaths(self.GameFileSystemPath, path)
+  local file, err = io.open(path)
  
   if not file then
     return nil, err
@@ -462,7 +463,7 @@ function ModEntry:LoadLuaFile(path)
   local chunk = file:read("*all")
   io.close(file)
   
-  return loadstring(chunk)
+  return loadstring(chunk, path)
 end
 
 function ModEntry:RunLuaFile(path)

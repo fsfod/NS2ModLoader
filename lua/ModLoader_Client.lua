@@ -16,14 +16,6 @@ if(StartupLoader) then
   end
 end
 
-Script.Load("lua/ModuleBootstrap.lua")
-
-local success, msg = ModuleBootstrap:LoadModule("NS2_IO", true)
-
-if(not success) then
-	Shared.Message("Stopping because NS2_IO encounted error: "..(msg or "unknown error"))
- return
-end
 
 Script.Load("lua/ModLoader_Shared.lua")
 
@@ -54,9 +46,3 @@ StartupLoader.StartupCompleteCallback = function(msg, IsLuaReload)
 end
 
 StartupLoader:Activate()
-
-/*
-Script.Load("lua/Client.lua")
-ModLoader:OnClientLuaFinished()
-ClassHooker:OnLuaFullyLoaded()
-*/

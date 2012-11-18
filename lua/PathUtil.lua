@@ -48,6 +48,9 @@ function GetFileNameWithoutExt(path)
 	local index = string.find(path, "[%/%\\]([^.]*)$")
   local ext = string.find(path, "%.", -#path)
 
+  if(not ext and not string.find(path, "[%/%\\]")) then
+    return path
+  end
 
 	if(index and ext) then
 		if(index == #path or index+1 == #path or ext > index) then
