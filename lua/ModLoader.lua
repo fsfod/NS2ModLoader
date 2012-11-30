@@ -40,7 +40,7 @@ end
 
 ClassHooker:Mixin("ModLoader")
 
-local VMName = (StartupLoader and StartupLoader.IsMainVM and "main") or (Server and "server") or "client"
+local VMName = decoda_name:lower()
 local OppositeVMName = (Server and "Client") or "Server"
 
 

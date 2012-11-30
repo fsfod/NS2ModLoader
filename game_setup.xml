@@ -3,5 +3,6 @@
 	<description>Natural Selection 2 with ModLoader</description>
 	<client>lua/ModLoader_Client.lua</client>
 	<server>lua/ModLoader_Server.lua</server>
+	<predict>lua/ModLoader_Predict.lua</predict>
 	<soundinfo>sound/NS2.soundinfo</soundinfo>
 </game>

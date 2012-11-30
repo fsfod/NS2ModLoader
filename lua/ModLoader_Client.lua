@@ -2,6 +2,8 @@
 //   Created by:   fsfod
 //
 
+decoda_name = decoda_name or "Client"
+
 Script.Load("lua/ModPathHelper.lua")
 
 if(StartupLoader) then

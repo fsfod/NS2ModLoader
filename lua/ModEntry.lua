@@ -327,7 +327,7 @@ function ModEntry:ValidateModinfo()
 	if(vmNames) then
 	  self.ValidVm = vmNames
   else
-		self:PrintError("%s's modinfo ValidVM field needs tobe either \"client\", \"server\" or \"main\" or a table with one or more of these values", self.Name)
+		self:PrintError("%s's modinfo ValidVM field needs tobe either \"client\", \"server\" or \"main\" or \"predict\" or a table with one or more of these values", self.Name)
 		LoadError = LoadError or LoadState.ModinfoFieldInvalid
 	end
 

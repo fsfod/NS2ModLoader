@@ -1,10 +1,8 @@
 //
 //   Created by:   fsfod
 //
-__ModFolderName = "ModLoader"
-decoda_name = "Server"
+decoda_name = "Predict"
 
-Script.Load("lua/PathUtil.lua")
 Script.Load("lua/ModPathHelper.lua")
 
 if(StartupLoader) then
@@ -12,13 +10,19 @@ if(StartupLoader) then
   StartupLoader:ReloadStarted()
 end
 
-Script.Load("lua/ModuleBootstrap.lua")
-
 
 Script.Load("lua/ModLoader_Shared.lua")
 
+StartupLoader.FullLoadFiles = {
+  "lua/Predict.lua",  
+}
+
+Script.Load("lua/PlayerEvents.lua")
+Script.Load("lua/InputKeyHelper.lua")
+
 Script.Load("lua/ModLoader.lua")
 Script.Load("lua/ModEntry.lua")
+
 
 ModLoader:Init()
 
