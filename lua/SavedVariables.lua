@@ -231,7 +231,7 @@ function WriteTable(file, tbl)
       
       file:write(indent, key, " = {\n")
        WriteTable(file, val)
-      file:write(indent, key, "},\n")
+      file:write(indent, "},\n")
       
     elseif(valueType == "userdata") then
       
