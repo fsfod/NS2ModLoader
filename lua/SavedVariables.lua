@@ -24,6 +24,8 @@ local function CreatedInstance(self, name, fieldList, container)
   
   setmetatable(instance, InstanceMT)
 
+  Script.AddShutdownFunction(function() instance:Save() end)
+
   return instance  
 end
 
@@ -121,25 +123,24 @@ local function WriteValue(file, val)
   
   if(valueType == "string") then
   
-    file:write("\"", val, "\",\n")
+    file:write("\"", val, "\"\n")
     
   elseif(valueType == "number" or valueType == "boolean") then
     
-    file:write(tostring(val), ",\n")
+    file:write(tostring(val), "\n")
     
   elseif(valueType == "table") then
     
     file:write(key, "{\n")
      WriteTable(file, val)
-    file:write(key, "},\n")
+    file:write(key, "}\n")
     
   elseif(valueType == "userdata") then
-    
-    
+
     if(val:isa("Vector")) then
-      file:write(string.format("Vector(%f, %f, %f),\n", val.x, val.y, vla.z))
+      file:write(string.format("Vector(%f, %f, %f)\n", val.x, val.y, vla.z))
     elseif(val:isa("Color")) then
-      file:write(string.format("Color(%f, %f, %f, %f),\n", val.r, val.g, val.b, val.a))
+      file:write(string.format("Color(%f, %f, %f, %f)\n", val.r, val.g, val.b, val.a))
     end
   end
 end
@@ -274,7 +275,7 @@ function SavedVariables:Save()
         WriteTable(file, value)
       file:write("}\n")
     elseif(value ~= nil) then
-      file:write(fieldName, " = ", "\n")
+      file:write(fieldName, " = ")
       WriteValue(file, value)
     end
     
