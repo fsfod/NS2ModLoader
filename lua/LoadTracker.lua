@@ -4,8 +4,11 @@
 
 local HotReload = LoadTracker
 
+local Version = "1.0"
+
 if(not LoadTracker) then
   LoadTracker = {
+    Version = Version,
     LoadStack = {},
     LoadedScripts = {},
     
@@ -14,49 +17,43 @@ if(not LoadTracker) then
     OverridedFiles = {},
     BlockedScripts = {},
   }
+else
+  //make sure this is not diffent version of LoadTracker being loaded with another one already loaded
+  assert(LoadTracker.Version == Version)
+  //clear loaded scripts since were at the start of a hot reload
+  LoadTracker.LoadedScripts = {}
+end
 
-  LoadTracker.NormalizePath = NormalizePath
-  
-  local Script_Load = Script.Load
-  
-  Script.Load = function(scriptPath)
-    //just let the real script.load bomb on bad paramters
-    if(not scriptPath or type(scriptPath) ~= "string") then
-      Script_Load(scriptPath)
-    end
-    
-    local normPath = NormalizePath(scriptPath)
-    local NewPath = LoadTracker:ScriptLoadStart(normPath, scriptPath)
-    
-    local ret
-    
-    if(NewPath) then
-      ret = Script_Load(NewPath)
-    end
-    
-    assert(ret ==  nil)
-    
-    LoadTracker:ScriptLoadFinished(normPath)
+local ForwardSlash = string.byte("/")
+
+local function NormalizePath(luaFilePath)
+
+  local path = string.gsub(luaFilePath, "\\", "/")
+  path = path:lower()
+
+  if(string.byte(path) == ForwardSlash) then
+    path = path:sub(2)
   end
 
+  return path
 end
 
-function LoadTracker:LuaReloadStarted()
-  self.LoadedScripts = {}
-end
+LoadTracker.NormalizePath = NormalizePath
 
-function LoadTracker:ScriptLoadStart(normalizedsPath, unnormalizedsPath)
-  table.insert(self.LoadStack, normalizedsPath)
+
+//This function is called by our Script.Load hook if we return false the hook blocks the script from loading
+function LoadTracker:ScriptLoadStart(normalizedPath, unnormalizedPath)
+  table.insert(self.LoadStack, normalizedPath)
   
-  if(self.BlockedScripts[normalizedsPath]) then
+  if(self.BlockedScripts[normalizedPath]) then
     return false
   end
   
   --store the stack index so we can be sure were not reacting to a double load of the same file
-  if(not self.LoadedScripts[normalizedsPath]) then
-    self.LoadedScripts[normalizedsPath] = #self.LoadStack
+  if(not self.LoadedScripts[normalizedPath]) then
+    self.LoadedScripts[normalizedPath] = #self.LoadStack
     
-    local FileOverride = self.OverridedFiles[normalizedsPath]
+    local FileOverride = self.OverridedFiles[normalizedPath]
     
     if(FileOverride) then
       if(type(FileOverride) ~= "table") then
@@ -68,12 +65,12 @@ function LoadTracker:ScriptLoadStart(normalizedsPath, unnormalizedsPath)
     end
   else
     --block a double load of an override
-    if(self.OverridedFiles[normalizedsPath]) then
+    if(self.OverridedFiles[normalizedPath]) then
       return false
     end
   end
   
-  return unnormalizedsPath
+  return unnormalizedPath
 end
 
 function LoadTracker:HookFileLoadFinished(scriptPath, selfOrFunc, funcName)
@@ -162,17 +159,17 @@ function LoadTracker:BlockScriptLoad(scriptPath)
   self.BlockedScripts[tobeNorm] = true
 end
 
-function LoadTracker:ScriptLoadFinished(normalizedsPath)
+function LoadTracker:ScriptLoadFinished(normalizedPath)
 
   --make sure that were not getting a nested double load of the same file
-  if(self.LoadedScripts[normalizedsPath] == #self.LoadStack) then
-    if(self.LoadedFileHooks[normalizedsPath]) then
-      for _,hook in ipairs(self.LoadedFileHooks[normalizedsPath]) do
+  if(self.LoadedScripts[normalizedPath] == #self.LoadStack) then
+    if(self.LoadedFileHooks[normalizedPath]) then
+      for _,hook in ipairs(self.LoadedFileHooks[normalizedPath]) do
         hook()
       end
     end
 
-    local LoadAfter = self.LoadAfterScripts[normalizedsPath]
+    local LoadAfter = self.LoadAfterScripts[normalizedPath]
 
     if(LoadAfter) then
       for _,entry in ipairs(LoadAfter) do
@@ -185,40 +182,40 @@ function LoadTracker:ScriptLoadFinished(normalizedsPath)
     end
     
     if(ClassHooker) then
-      ClassHooker:ScriptLoadFinished(normalizedsPath)
+      ClassHooker:ScriptLoadFinished(normalizedPath)
     end
     
-    self.LoadedScripts[normalizedsPath] = true
+    self.LoadedScripts[normalizedPath] = true
   end
 
   table.remove(self.LoadStack)
 end
 
-
-function LoadTracker:SetFileInjection(targetfile, inject, class)
-
-  if(not class or type(class) == "string") then
-    self.InjectedFiles[targetfile] = {inject, nil, class}
-  else
-    
-  end
-end
-
-function LoadTracker:CheckInject(className, mapname)
-  local currentfile = LoadTracker.LoadStack[#self.LoadStack]
-  
-  local Injector = currentfile and self.InjectedFiles[currentfile]
-
-  if(Injector and Injector[3] == className) then
-    if(not Injector[2]) then
-      Script.Load(Injector[1])
-    else
-      RunScriptFromSource(Injector[2], Injector[1])
-    end
-  end
-end
-
-
 function LoadTracker:GetCurrentLoadingFile()
   return self.LoadStack[#self.LoadStack]
+end
+
+if(not HotReload) then
+
+  local Script_Load = Script.Load
+  
+  Script.Load = function(scriptPath)
+    //just let the real script.load bomb on bad paramters
+    if(not scriptPath or type(scriptPath) ~= "string") then
+      Script_Load(scriptPath)
+    end
+    
+    local normPath = NormalizePath(scriptPath)
+    local newPath = LoadTracker:ScriptLoadStart(normPath, scriptPath)
+    
+    local ret
+    
+    if(newPath) then
+      ret = Script_Load(newPath)
+    end
+    
+    assert(ret == nil)
+    
+    LoadTracker:ScriptLoadFinished(normPath)
+  end
 end
